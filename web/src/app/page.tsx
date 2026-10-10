@@ -1,35 +1,10 @@
 "use client";
 
 import {
-  Activity,
-  ArrowDownRight,
-  ArrowUpRight,
-  BadgeCheck,
-  BookOpen,
-  Building2,
-  Camera,
-  Check,
-  ChevronDown,
-  CircleHelp,
-  Clock3,
-  Database,
-  FileVideo,
-  Filter,
-  GraduationCap,
-  LayoutDashboard,
-  LockKeyhole,
-  MapPinned,
-  Play,
-  ScanSearch,
-  ShieldCheck,
-  Sparkles,
-  Upload,
-  Users,
-  Video,
-  Wifi,
-  Zap,
+  Activity, ArrowDownRight, ArrowUpRight, BookOpen, Building2, Camera,
+  CircleHelp, Database, FileVideo, Filter, GraduationCap, LayoutDashboard,
+  LockKeyhole, MapPinned, ScanSearch, ShieldCheck, Sparkles, Users, Video, Zap,
 } from "lucide-react";
-import { useRef, useState } from "react";
 
 const sampleZones = [
   { id: "LIB-01", name: "Central Library", location: "Block A · Level 1", capacity: 42, occupied: 28, status: "Busy" },
@@ -39,9 +14,9 @@ const sampleZones = [
 ];
 
 const activities = [
-  { icon: Video, title: "Video analysis is not connected yet", detail: "Upload integration comes in the next build.", color: "violet" },
-  { icon: Database, title: "Supabase connection pending", detail: "No live occupancy data is being read.", color: "cyan" },
-  { icon: ShieldCheck, title: "Privacy-first by design", detail: "No face recognition. Keep raw footage temporary.", color: "green" },
+  { icon: Video, title: "Video analysis is not connected yet", detail: "Capture uploads are planned; the AI inference worker is next.", color: "violet" },
+  { icon: Database, title: "Supabase connection pending", detail: "Requires your Supabase project and migrations to be configured.", color: "cyan" },
+  { icon: ShieldCheck, title: "Privacy-first by design", detail: "No face recognition; clips use private temporary storage.", color: "green" },
 ];
 
 function MetricCard({
@@ -70,23 +45,6 @@ function MetricCard({
 }
 
 export default function DashboardPage() {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [fileMessage, setFileMessage] = useState("MP4 files only · Select a video to prepare a demo job.");
-  const [dragging, setDragging] = useState(false);
-
-  function acceptFile(file?: File) {
-    if (!file) return;
-    const looksLikeMp4 = file.type === "video/mp4" || file.name.toLowerCase().endsWith(".mp4");
-    if (!looksLikeMp4) {
-      setSelectedFile(null);
-      setFileMessage("Please choose an MP4 video. Other file types are not accepted.");
-      return;
-    }
-    setSelectedFile(file);
-    setFileMessage("File selected locally. Processing is not available in this build yet.");
-  }
-
   const totalCapacity = sampleZones.reduce((sum, zone) => sum + zone.capacity, 0);
   const occupied = sampleZones.reduce((sum, zone) => sum + zone.occupied, 0);
 
@@ -136,7 +94,7 @@ export default function DashboardPage() {
               <h1 className="page-title">Know your space.<br /><span className="gradient-text">Before you get there.</span></h1>
               <p className="page-subtitle">A live view of campus space availability, built around privacy-conscious computer vision. This workspace currently shows clearly labelled sample values.</p>
             </div>
-            <button type="button" className="primary-button" onClick={() => fileInputRef.current?.click()}><Upload size={15} /> Add demo video <ArrowUpRight size={13} /></button>
+            <a className="primary-button" href="/capture"><Camera size={15} /> Open Capture app <ArrowUpRight size={13} /></a>
           </section>
 
           <section className="metrics-grid" aria-label="Example summary">
@@ -184,35 +142,16 @@ export default function DashboardPage() {
 
             <article className="panel" id="video-source">
               <div className="panel-heading">
-                <div><div className="panel-title">Add a video source</div><div className="panel-subtitle">Start with an MP4 recorded demo</div></div>
-                <span className="micro-tag"><FileVideo size={12} /> INPUT</span>
+                <div><div className="panel-title">WIMS Capture app</div><div className="panel-subtitle">One mobile workspace for every video source</div></div>
+                <span className="micro-tag"><Camera size={12} /> SOURCE STUDIO</span>
               </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="video/mp4,.mp4"
-                className="visually-hidden"
-                aria-label="Choose an MP4 video"
-                onChange={(event) => acceptFile(event.target.files?.[0])}
-              />
-              <button
-                type="button"
-                className={`upload-zone ${dragging ? "dragging" : ""}`}
-                onClick={() => fileInputRef.current?.click()}
-                onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
-                onDragLeave={() => setDragging(false)}
-                onDrop={(event) => { event.preventDefault(); setDragging(false); acceptFile(event.dataTransfer.files?.[0]); }}
-              >
-                <span className="upload-icon"><Upload size={19} /></span>
-                <span className="upload-title">{selectedFile ? selectedFile.name : "Drop your demo video here"}</span>
-                <span className="upload-copy">{selectedFile ? `${(selectedFile.size / (1024 * 1024)).toFixed(1)} MB · Selected in this browser only` : "Drag & drop an MP4, or browse files on your computer."}</span>
-                <span className="upload-help">{fileMessage}</span>
-              </button>
-              <div className="source-actions">
-                <button type="button" className="secondary-button" onClick={() => fileInputRef.current?.click()}><FileVideo size={14} /> Browse MP4</button>
-                <button type="button" className="primary-button button-disabled" disabled title="Video processing will be added after the API service is implemented"><Play size={14} /> Processing not ready</button>
-              </div>
-              <div className="integration-note"><Database size={15} /><span><strong>Backend not connected.</strong> This UI does not upload the file to a server, start AI processing, or write to Supabase yet. The selected file stays in the current browser session.</span></div>
+              <a href="/capture" className="capture-launch-card">
+                <span className="capture-launch-icon"><Camera size={21} /></span>
+                <span className="capture-launch-copy"><strong>Open WIMS Capture</strong><small>Phone camera · screen recording · MP4/WebM · extra IP cameras</small><em>Open source studio <ArrowUpRight size={12} /></em></span>
+                <ArrowUpRight size={16} className="capture-launch-arrow" />
+              </a>
+              <div className="capture-launch-facts"><span><LockKeyhole size={13} /> Paired device access</span><span><Database size={13} /> Source metadata stored in Supabase</span></div>
+              <div className="integration-note"><Database size={15} /><span><strong>Current stage:</strong> source registry and temporary video upload. The AI worker and continuous live stream analysis still need to be connected.</span></div>
             </article>
           </section>
 

@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
 from cryptography.fernet import Fernet, InvalidToken
-from fastapi import Depends, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field as PydanticField
 from pydantic_settings import BaseSettings, SettingsConfigDict

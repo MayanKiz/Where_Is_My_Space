@@ -1,59 +1,70 @@
-# Where Is My Space?
+# Where Is My Space? (WIMS)
 
-> **Find your space before you reach there.**
+> **Find your space before you reach there.**  
+> Intelligence for physical spaces.
 
-**Where Is My Space? (WIMS)** is an AI-powered spatial intelligence platform designed to help people discover available and suitable spaces in real time.
+WIMS is a campus spatial-intelligence project intended to estimate how spaces are being used and help people find a suitable study area before walking there.
 
-Instead of asking users to walk around and manually check different locations, WIMS turns authorized camera infrastructure into useful occupancy intelligence.
+## The single-app experience
 
-## Core idea
+The web app includes a mobile-first **WIMS Capture** route at `/capture`. Open the deployed link on a phone; users do not install Python, OpenCV, or YOLO on their own device.
 
-**Camera stream → Edge inference → Occupancy intelligence → Realtime API → Web app → User recommendations**
+Capture modes:
+- **Phone camera:** request camera permission, record a short clip, review, and upload it.
+- **Screen share:** use the browser's display-capture API when available. Mobile support varies, so the phone's built-in screen recorder followed by file upload is the fallback.
+- **Video file:** upload a recorded MP4 or WebM.
+- **CCTV / IP camera:** register an authorized RTSP/RTSPS source. The URL is encrypted by the backend and is not returned in source-list responses.
 
-The platform is designed to work across campuses, study areas, offices, waiting areas, hospitals, co-working spaces, venues, and other capacity-based environments.
+The PWA can be added to a phone's Home Screen. Capture access uses a shared beta pairing code configured on the backend; it is not a full user-account system.
 
-## What WIMS can provide
+## Current architecture
 
-- Real-time availability
-- Occupancy and crowd-level information
-- Visual space maps
-- Group-space discovery
-- Less-crowded recommendations
-- Availability notifications
-- Space-utilization analytics
-- Natural-language search and recommendations
+```text
+Phone / laptop browser
+    ├── Camera recording
+    ├── Screen recording (browser dependent)
+    ├── MP4 / WebM upload
+    └── Authorized RTSP source registration
+                |
+                v
+       WIMS Capture (Next.js PWA)
+                |
+                v
+        FastAPI upload API
+          |             |
+          v             v
+   Supabase metadata   Private temporary video bucket
+          |
+          v
+  [Next step] AI worker → zone occupancy snapshots → dashboard
+```
 
-## Privacy by design
+The web frontend and Python API are separate services. Vercel may host the frontend; the FastAPI service must be deployed separately. Video storage is private and temporary. RTSP addresses are encrypted at rest by the API.
 
-WIMS does not require identity recognition to solve the availability problem. The preferred architecture processes visual data near the camera or on an authorized edge computer and sends only the required occupancy metadata to the backend.
+## Code in this branch
 
-**Raw video is not the product. Intelligence extracted from the video is.**
+- `web/`: Next.js, TypeScript, Tailwind, dashboard, mobile Capture PWA, MP4/WebM upload client and installable manifest.
+- `backend/`: FastAPI source registry, upload endpoint, pairing-code check, job status API and best-effort temporary-file cleanup.
+- `supabase/migrations/`: initial metadata schema and Capture source registry schema.
+- `docs/`: product vision, privacy, system architecture, detection approach, database and MVP requirements.
+- `IMPLEMENTATION_PLAN.md`: step-by-step implementation plan.
 
-## Initial MVP
+## What is not working yet
 
-The first prototype will focus on one controlled area:
+This branch is **not a deployed, verified end-to-end product yet**:
+- Live Supabase migrations and project credentials have not been configured in this conversation.
+- AI inference (YOLO/OpenCV worker), person tracking, zone occupancy/seat estimation, and continuous live streaming are not implemented.
+- Registering an RTSP camera records its metadata and encrypted URL but does not connect to or analyse its stream yet.
+- Upload receipt/job creation is coded but still needs testing against a real Supabase project and deployed API.
+- Dashboard figures are illustrative sample values, not real occupancy.
 
-1. Receive an authorized video feed.
-2. Detect people using computer vision.
-3. Map detections to configured zones/spaces.
-4. Calculate occupancy.
-5. Expose the result through an API.
-6. Display live availability in a web dashboard.
+A video being uploaded is **not** the same as the video being analysed.
 
-## Planned technology
+## Setup docs
 
-- Python
-- OpenCV
-- YOLO
-- FastAPI
-- PostgreSQL / Supabase
-- Next.js
-- TypeScript
-- Realtime APIs
-- LLM-assisted natural-language interaction
+- Frontend and phone installation: [`web/README.md`](web/README.md)
+- FastAPI and Supabase setup: [`backend/README.md`](backend/README.md)
+- Product and technical documents: [`docs/`](docs/)
+- Implementation steps: [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md)
 
-## Repository
-
-This repository contains the product documentation, system architecture, MVP specifications, and implementation roadmap for Where Is My Space?
-
-**Status:** Early-stage prototype / product development.
+Use only camera footage you are authorized to capture. WIMS does not need face recognition; keep raw footage temporary and persist the minimum useful occupancy metadata.

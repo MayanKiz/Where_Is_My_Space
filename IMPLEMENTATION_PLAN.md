@@ -1,35 +1,59 @@
-## WIMS implementation plan (working document)
+# WIMS Implementation Plan
 
-We are building the actual project in this repository, not just planning it.
+This repository is being developed as working software, in focused commits. The UI must never present sample data as live measurements.
 
-### Product goal
-Where Is My Space? helps campus users find available study spaces. First end-to-end demo: user uploads an MP4 → local Python/FastAPI processes it → computer vision produces labelled detection/occupancy results → only useful metadata is written to Supabase → the web dashboard shows results and timestamps.
+## Product goal
 
-### Agreed constraints
-- Developer machine: laptop/PC.
-- First input: uploaded recorded MP4; webcam and authorized campus CCTV are later sources.
-- Supabase from the start for zone configuration and occupancy metadata.
-- Next.js frontend can be hosted on Vercel; Python video processing is a separate service and is not assumed to run on Vercel.
-- No face recognition. Raw videos are temporary processing inputs and must not be persisted by default.
+Where Is My Space? helps people find suitable available campus spaces. The end-to-end target is:
+
+`Phone/camera source → secure capture/API → AI inference → configured occupancy zones → Supabase metadata → WIMS dashboard`
+
+## Agreed constraints
+
+- Developer setup: laptop/PC.
+- A single **WIMS Capture** app route should accept camera recordings, browser screen capture where supported, MP4/WebM files, and additional authorized IP camera sources.
+- The Capture PWA should open from a link and be addable to a phone's Home Screen; a native APK is not required for the first prototype.
+- Other users must not need to install Python, OpenCV, or YOLO on their devices.
+- Supabase is the metadata store. Raw video should be kept in private temporary storage and deleted after processing/expiry.
+- No face recognition. Keep only the minimum occupancy metadata.
+- Frontend and Python inference/API are separate deployable services.
 - Keep each meaningful change in its own Git commit.
-- Do not describe mock numbers as live, and do not claim features/deployment until verified.
+- Never claim a stage, external integration, test, or deployment is complete without verification.
 
-### Implementation sequence
-1. **Frontend scaffold**: add a Next.js + TypeScript + Tailwind app under `web/`, preserving current docs. Verify local startup.
-2. **Dashboard UI**: WIMS dashboard, clear “demo/not connected” status, source upload panel, zones and occupancy cards. Mock examples must be explicitly labelled.
-3. **Supabase schema**: locations, zones/seats configuration, occupancy snapshots and processing jobs; apply RLS and use server-side credentials only where appropriate. Verify insert/read against a real project.
-4. **Python API skeleton**: FastAPI health route, upload size/type validation, temporary file handling, cleanup. Verify with a small MP4.
-5. **Vision pipeline**: OpenCV + YOLO person detection, bounding-box preview and counts. Treat “person count” separately from exact chair occupancy.
-6. **Zone occupancy**: configurable polygons/seat areas and explicit occupancy-estimation rules; persist counts and timestamps to Supabase.
-7. **Dashboard integration**: real processing-job status and processed occupancy updates; no fake live values.
-8. **Verification and deployment**: test frontend, API, database, upload error cases, cleanup and responsive UI. Deploy frontend and backend separately only after tests pass.
+## Implementation state in this PR branch
 
-### Acceptance criteria for the first implementation
-- Existing `README.md` and `docs/` remain unchanged.
-- A Next.js app lives in `web/`.
-- A developer can install dependencies and start the app locally using its README instructions.
-- No API keys or Supabase secrets are committed.
-- This first change does not claim camera, upload, AI, database or deployment functionality yet.
+### Code added (not yet verified end-to-end)
+1. A Next.js / TypeScript / Tailwind web app in `web/`.
+2. A responsive WIMS dashboard with sample data labelled as illustrative.
+3. A mobile-first installable `/capture` PWA route with four source modes:
+   - phone camera recording with browser permission;
+   - screen capture only when supported by the mobile browser;
+   - MP4/WebM file upload;
+   - registration of an authorized RTSP/RTSPS IP camera.
+4. A FastAPI service for source metadata, private temporary video upload, job creation/status, a shared pairing code, and encryption of RTSP URLs.
+5. Supabase migrations for locations, zones, jobs, occupancy snapshots, source registry, RLS, and a private temporary video bucket.
+6. Basic CI to run TypeScript, ESLint, and production build checks.
 
-### Immediate next action
-Create the `web/` Next.js scaffold in this repo, commit that as a single focused change, then implement the dashboard UI in a separate commit.
+### Still required
+1. **Fix any CI errors** and verify frontend production build.
+2. Configure a real Supabase project and apply migrations in order.
+3. Test source creation/list, MP4/WebM upload, job reads and video expiry cleanup with real credentials.
+4. Build the OpenCV + YOLO inference worker and a durable job queue.
+5. Add person detection and visual preview; do not confuse people count with exact chair occupancy.
+6. Configure per-camera zones/polygons and implement a clearly defined occupancy estimate.
+7. Persist inference output to `occupancy_snapshots` and wire the dashboard to live Supabase/API results.
+8. Add continuous live streaming/RTSP ingestion; current phone modes record a short clip and upload it rather than sending a continuous stream.
+9. Strengthen beta access with production-grade identity/access control, rate limiting and abuse protection.
+10. Deploy frontend and API separately and verify both HTTPS endpoints; configure CORS and environment secrets.
+
+## Security requirements
+
+- `SUPABASE_SERVICE_ROLE_KEY`, `WIMS_CAPTURE_ACCESS_CODE`, and `WIMS_SOURCE_ENCRYPTION_KEY` are backend-only secrets.
+- The frontend may contain only the public API origin and optional public Supabase credentials.
+- Never return a saved RTSP URL to the browser; encrypt it at rest.
+- The temporary video bucket must remain private. Expired raw uploads should be deleted while useful job/source metadata is retained.
+- A successfully received file is not an AI result. Do not mark a job complete without verified processing results.
+
+## Demo acceptance criteria
+
+The first credible demo should let a second device open the deployed Capture URL, pair using the beta code, record/upload a short clip, and see a persisted source record and upload-job metadata. It must display an explicit **AI processing not enabled** state until the inference worker is implemented. Later acceptance adds bounding boxes, zone counts, timestamps, and dashboard updates based on the actual processed clip.
