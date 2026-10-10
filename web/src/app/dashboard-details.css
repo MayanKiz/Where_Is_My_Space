@@ -110,3 +110,18 @@ button { -webkit-tap-highlight-color: transparent; }
   .pipeline-steps span { padding: 6px 5px; }
   .footer-note { align-items: flex-start; flex-direction: column; }
 }
+
+/* Entry point to the mobile source studio. */
+.capture-launch-card{display:flex;align-items:center;gap:13px;margin-top:18px;border:1px solid rgba(120,232,239,.2);border-radius:13px;padding:16px;background:linear-gradient(120deg,rgba(120,232,239,.065),rgba(155,140,255,.035));transition:background .18s,border-color .18s,transform .18s}
+.capture-launch-card:hover{transform:translateY(-1px);border-color:rgba(120,232,239,.42);background:linear-gradient(120deg,rgba(120,232,239,.1),rgba(155,140,255,.065))}
+.capture-launch-icon{display:grid;width:43px;height:43px;flex:0 0 auto;place-items:center;border:1px solid rgba(120,232,239,.2);border-radius:12px;color:var(--cyan);background:rgba(120,232,239,.065)}
+.capture-launch-copy{display:block;min-width:0;flex:1}
+.capture-launch-copy strong,.capture-launch-copy small,.capture-launch-copy em{display:flex;align-items:center;gap:5px}
+.capture-launch-copy strong{color:#e5f5fb;font-size:11px;font-weight:700}
+.capture-launch-copy small{display:block;margin-top:6px;color:#7e91a8;font-size:9px;line-height:1.6}
+.capture-launch-copy em{margin-top:9px;color:var(--cyan);font-size:9px;font-style:normal}
+.capture-launch-arrow{flex:0 0 auto;color:#6a7e95}
+.capture-launch-facts{display:flex;flex-wrap:wrap;gap:12px;margin-top:13px}
+.capture-launch-facts span{display:inline-flex;align-items:center;gap:6px;color:#8292a7;font-size:9px}
+.capture-launch-facts svg{color:var(--green)}
+@media(max-width:720px){.capture-launch-card{align-items:flex-start;padding:13px}.capture-launch-icon{width:37px;height:37px}.capture-launch-copy small{font-size:8px}.capture-launch-facts{gap:8px;flex-direction:column}}
