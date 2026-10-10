@@ -3,7 +3,7 @@
 import {
   ArrowLeft, ArrowUpRight, CheckCircle2, CircleAlert, CloudUpload, Database,
   FileVideo2, HardDrive, LockKeyhole, MonitorUp, Radio, RefreshCw, Smartphone,
-  Square, Video, Wifi, X,
+  ShieldCheck, Square, Video, Wifi, X,
 } from "lucide-react";
 import Link from "next/link";
 import { ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
