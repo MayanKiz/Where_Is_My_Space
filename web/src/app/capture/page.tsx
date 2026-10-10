@@ -161,9 +161,16 @@ export default function CapturePage() {
   function chooseMode(next: Mode) {
     if (isRecording) return;
     if (streamRef.current) stopStream();
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
     setMode(next);
+    setFile(null);
+    setRecordedFile(null);
     setFeedback(null);
     setJob(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
     if (next === "camera") setSourceName("Phone camera");
     if (next === "screen") setSourceName("Screen recording");
     if (next === "file") setSourceName("Uploaded video");
@@ -206,7 +213,6 @@ export default function CapturePage() {
       streamRef.current = media;
       setStream(media);
       setRecordedFile(null);
-      setSourceName("Screen recording");
       setFeedback({ kind: "info", message: "Screen is being shared. Start recording, then play the video you want WIMS to inspect." });
     } catch (error) {
       setFeedback({ kind: "error", message: error instanceof Error ? error.message : "Screen sharing was cancelled or blocked." });
@@ -297,8 +303,13 @@ export default function CapturePage() {
     setJob(null);
     setFeedback({ kind: "info", message: "Saving source metadata, then uploading the video to private temporary storage…" });
     try {
+      const defaultName = sourceType === "phone_camera"
+        ? "Phone camera"
+        : sourceType === "screen_share"
+          ? "Screen recording"
+          : inputFile.name;
       const source = await registerCaptureSource({
-        name: sourceName.trim() || (sourceType === "phone_camera" ? "Phone camera" : sourceType === "screen_share" ? "Screen recording" : inputFile.name),
+        name: (sourceType === "phone_camera" ? cameraName : sourceName).trim() || defaultName,
         source_type: sourceType,
         device_label: deviceLabel.trim() || (/Android|iPhone|iPad/i.test(navigator.userAgent) ? "Mobile device" : "Browser device"),
       }, accessCode);
@@ -307,6 +318,10 @@ export default function CapturePage() {
       setJob(result);
       setFile(null);
       setRecordedFile(null);
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = null;
+      }
       setFeedback({
         kind: "success",
         message: "Upload saved to private temporary storage and the job metadata is in Supabase. AI analysis is not enabled yet, so no occupancy result has been calculated.",
