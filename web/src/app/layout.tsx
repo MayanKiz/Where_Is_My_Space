@@ -6,6 +6,12 @@ export const metadata: Metadata = {
   description:
     "Discover available campus spaces with privacy-conscious occupancy intelligence.",
   applicationName: "Where Is My Space?",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "WIMS Capture",
+    statusBarStyle: "black-translucent",
+  },
 };
 
 export const viewport: Viewport = {
