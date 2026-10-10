@@ -227,7 +227,7 @@ export default function CapturePage() {
     }
     const mimeType = recorderMimeType();
     if (!mimeType) {
-      setFeedback({ kind: "error", message: "No supported browser recording format was found. Use the phone's built-in recorder and upload its video." });
+      setFeedback({ kind: "error", message: "No supported browser recording format was found. Use the phone&apos;s built-in recorder and upload its video." });
       return;
     }
     try {
@@ -370,7 +370,7 @@ export default function CapturePage() {
           <input id="capture-code" autoComplete="one-time-code" value={accessInput} onChange={(event) => setAccessInput(event.target.value)} placeholder="Enter shared access code" />
           <button className="capture-primary" type="submit" disabled={authBusy}>{authBusy ? "Connecting…" : "Connect device"} <ArrowUpRight size={15} /></button>
           {feedback && <FeedbackView feedback={feedback} />}
-          <div className="access-note"><ShieldCheck size={14} /> The code is kept in this tab's session only.</div>
+          <div className="access-note"><ShieldCheck size={14} /> The code is kept in this tab&apos;s session only.</div>
         </form>
         <div className="access-foot">The backend must be deployed and configured before this device can connect.</div>
       </section>
@@ -413,7 +413,7 @@ export default function CapturePage() {
         </div>
 
         {mode === "camera" && <div className="capture-mode-body">
-          {stream ? <div className="camera-frame live-frame"><video ref={liveVideoRef} autoPlay playsInline muted aria-label="Live phone camera preview" /><div className="frame-badge"><span className="record-dot" /> CAMERA PREVIEW</div></div> : recordedFile ? <VideoPreview file={recordedFile} videoRef={recordedVideoRef} /> : <div className="empty-preview"><span className="large-mode-icon"><Video size={25} /></span><strong>Use this device's camera</strong><span>On your phone, the rear camera is preferred. Allow camera access when prompted.</span></div>}
+          {stream ? <div className="camera-frame live-frame"><video ref={liveVideoRef} autoPlay playsInline muted aria-label="Live phone camera preview" /><div className="frame-badge"><span className="record-dot" /> CAMERA PREVIEW</div></div> : recordedFile ? <VideoPreview file={recordedFile} videoRef={recordedVideoRef} /> : <div className="empty-preview"><span className="large-mode-icon"><Video size={25} /></span><strong>Use this device&apos;s camera</strong><span>On your phone, the rear camera is preferred. Allow camera access when prompted.</span></div>}
           {!stream && !recordedFile && <button type="button" className="capture-primary full" onClick={() => void startCamera()}><Video size={16} /> Open phone camera</button>}
           {stream && !isRecording && <button type="button" className="capture-primary full" onClick={startRecording}><span className="record-dot dark" /> Start recording</button>}
           {isRecording && <button type="button" className="capture-stop full" onClick={stopRecording}><Square size={14} fill="currentColor" /> Stop & prepare clip <span className="record-live">REC</span></button>}
