@@ -1,0 +1,36 @@
+name: WIMS web checks
+
+on:
+  pull_request:
+    paths:
+      - "web/**"
+      - ".github/workflows/web-checks.yml"
+  push:
+    branches:
+      - main
+      - feat/web-scaffold
+    paths:
+      - "web/**"
+      - ".github/workflows/web-checks.yml"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm install
+      - name: Check TypeScript
+        run: npm run typecheck
+      - name: Check lint
+        run: npm run lint
+      - name: Build production bundle
+        run: npm run build
