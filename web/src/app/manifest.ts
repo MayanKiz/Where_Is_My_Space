@@ -14,7 +14,7 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#080b10",
     categories: ["utilities", "education", "productivity"],
     icons: [
-      { src: "/wims-icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any maskable" },
+      { src: "/wims-icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
     ],
   };
 }
