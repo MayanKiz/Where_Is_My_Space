@@ -135,3 +135,6 @@ a { color: inherit; text-decoration: none; }
 @media(max-width:720px) { .sidebar { position: relative; inset: auto; width: 100%; padding: 13px 16px; border-right: 0; border-bottom: 1px solid var(--line); }.sidebar .nav-label,.sidebar nav,.sidebar-bottom { display: none; }.main-area { margin-left: 0; }.topbar { min-height: 55px; padding: 0 16px; }.content { padding: 25px 16px 36px; }.page-heading { align-items: flex-start; flex-direction: column; }.page-heading .primary-button { width: 100%; }.metrics-grid { gap: 9px; margin-top: 22px; }.metric-card { padding: 13px; }.metric-value { font-size: 26px; }.metric-top { align-items: flex-start; }.metric-top > span:first-child { line-height: 1.5; }.panel { padding: 14px; }.map-stage { min-height: 245px; }.zone strong { font-size: 9px; }.zone span { font-size: 8px; }.source-actions { grid-template-columns: 1fr; }.top-actions .status-pill { display: none; }.content-grid,.bottom-grid { gap: 11px; } }
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 
+
+/* dashboard detail styles */
+@import "./dashboard-details.css";
