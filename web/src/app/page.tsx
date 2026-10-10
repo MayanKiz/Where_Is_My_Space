@@ -14,9 +14,9 @@ const sampleZones = [
 ];
 
 const activities = [
-  { icon: Video, title: "Video analysis is not connected yet", detail: "Upload integration comes in the next build.", color: "violet" },
-  { icon: Database, title: "Supabase connection pending", detail: "No live occupancy data is being read.", color: "cyan" },
-  { icon: ShieldCheck, title: "Privacy-first by design", detail: "No face recognition. Keep raw footage temporary.", color: "green" },
+  { icon: Video, title: "Video analysis is not connected yet", detail: "Capture uploads are planned; the AI inference worker is next.", color: "violet" },
+  { icon: Database, title: "Supabase connection pending", detail: "Requires your Supabase project and migrations to be configured.", color: "cyan" },
+  { icon: ShieldCheck, title: "Privacy-first by design", detail: "No face recognition; clips use private temporary storage.", color: "green" },
 ];
 
 function MetricCard({
