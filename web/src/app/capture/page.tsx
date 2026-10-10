@@ -77,7 +77,6 @@ export default function CapturePage() {
   const streamRef = useRef<MediaStream | null>(null);
   const previewUrlRef = useRef<string | null>(null);
   const recordTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const uploadAbortRef = useRef(false);
 
   useEffect(() => {
     setScreenShareAvailable(
@@ -91,7 +90,6 @@ export default function CapturePage() {
       void authorize(savedCode, true);
     }
     // On unmount, camera/screen permissions are released below.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -413,7 +411,7 @@ export default function CapturePage() {
         </div>
 
         {mode === "camera" && <div className="capture-mode-body">
-          {stream ? <div className="camera-frame live-frame"><video ref={liveVideoRef} autoPlay playsInline muted aria-label="Live phone camera preview" /><div className="frame-badge"><span className="record-dot" /> CAMERA PREVIEW</div></div> : recordedFile ? <VideoPreview file={recordedFile} videoRef={recordedVideoRef} /> : <div className="empty-preview"><span className="large-mode-icon"><Video size={25} /></span><strong>Use this device&apos;s camera</strong><span>On your phone, the rear camera is preferred. Allow camera access when prompted.</span></div>}
+          {stream ? <div className="camera-frame live-frame"><video ref={liveVideoRef} autoPlay playsInline muted aria-label="Live phone camera preview" /><div className="frame-badge"><span className="record-dot" /> CAMERA PREVIEW</div></div> : recordedFile ? <VideoPreview videoRef={recordedVideoRef} /> : <div className="empty-preview"><span className="large-mode-icon"><Video size={25} /></span><strong>Use this device&apos;s camera</strong><span>On your phone, the rear camera is preferred. Allow camera access when prompted.</span></div>}
           {!stream && !recordedFile && <button type="button" className="capture-primary full" onClick={() => void startCamera()}><Video size={16} /> Open phone camera</button>}
           {stream && !isRecording && <button type="button" className="capture-primary full" onClick={startRecording}><span className="record-dot dark" /> Start recording</button>}
           {isRecording && <button type="button" className="capture-stop full" onClick={stopRecording}><Square size={14} fill="currentColor" /> Stop & prepare clip <span className="record-live">REC</span></button>}
@@ -476,6 +474,6 @@ function FeedbackView({ feedback }: { feedback: Feedback }) {
   return <div className={`capture-feedback ${feedback.kind}`} role="status"><Icon size={15} /><span>{feedback.message}</span></div>;
 }
 
-function VideoPreview({ file, videoRef }: { file: File; videoRef: React.RefObject<HTMLVideoElement | null> }) {
+function VideoPreview({ videoRef }: { videoRef: React.RefObject<HTMLVideoElement | null> }) {
   return <div className="camera-frame recorded-frame"><video ref={videoRef} controls playsInline aria-label="Captured video review" /><div className="frame-badge"><CheckCircle2 size={12} /> REVIEW CLIP</div></div>;
 }
