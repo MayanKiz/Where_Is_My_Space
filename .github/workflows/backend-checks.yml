@@ -1,0 +1,50 @@
+name: WIMS backend checks
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - "supabase/migrations/**"
+      - ".github/workflows/backend-checks.yml"
+  push:
+    branches:
+      - main
+      - feat/web-scaffold
+    paths:
+      - "backend/**"
+      - "supabase/migrations/**"
+      - ".github/workflows/backend-checks.yml"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install API dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Check Python syntax
+        run: python -m compileall -q app
+      - name: Smoke-test FastAPI app and routes
+        run: |
+          python - <<'PY'
+          from app.main import app
+          paths = {route.path for route in app.routes}
+          required = {
+              "/health",
+              "/v1/sources",
+              "/v1/jobs/upload",
+              "/v1/jobs/{job_id}",
+          }
+          missing = required - paths
+          if missing:
+              raise SystemExit(f"Missing expected API routes: {sorted(missing)}")
+          print("WIMS API import and route smoke test passed.")
+          PY
