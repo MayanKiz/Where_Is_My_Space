@@ -1,4 +1,4 @@
-यह `README.md` में paste कर दें:
+
 
 ```md
 # Where Is My Space? (WIMS)
