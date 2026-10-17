@@ -14,6 +14,11 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+.pytest_cache/
+
+# AI model weights (downloaded at runtime, pinned by SHA-256)
+backend/models/
+*.onnx
 
 # IDE / OS
 .vscode/

@@ -26,7 +26,9 @@ Deploy the web app to an HTTPS domain and open `/capture` on the phone. Use the 
 - **Phone camera:** requests camera permission, records a short clip, lets the user review it, then uploads the recording.
 - **Screen share:** uses the browser's Screen Capture API when supported. Mobile support varies; the fallback is the phone's built-in screen recorder followed by Video File upload.
 - **Video file:** accepts MP4/WebM files up to 100 MiB per file (server configuration can set the limit).
-- **CCTV / IP camera:** registers an RTSP/RTSPS source. The server encrypts the URL; stream connection/analysis is not implemented yet.
+- **CCTV / IP camera:** registers an RTSP/RTSPS source with an optional occupancy zone. The server encrypts the URL; the stream worker analyses zoned cameras continuously.
+- **Occupancy zone:** when zones exist on the API, a zone picker appears so uploads and cameras are attributed to the right space.
+- **Job tracking:** after an upload, the app polls the job status and shows the AI result plus the annotated bounding-box preview when the worker finishes.
 - **Registered sources:** lists saved source metadata without exposing camera URLs.
 
 The Capture app prompts for a shared beta pairing code configured only on the backend as `WIMS_CAPTURE_ACCESS_CODE`. The code is retained in the current tab's session storage. It is not a full user-account system, so public production use will need stronger access control and rate limits.
@@ -41,8 +43,10 @@ The Capture app prompts for a shared beta pairing code configured only on the ba
 
 ## Current implementation status
 
-Implemented in code: dashboard UI, capture PWA route/manifest, browser camera recording, feature-detected screen recording, MP4/WebM upload client, source registration/list UI, FastAPI endpoints, Supabase migrations for source/job metadata, private temporary video storage, pairing-code checks, and RTSP URL encryption at rest.
+Implemented and locally verified (typecheck, ESLint, production build all pass): light-themed dashboard that fetches live occupancy from `GET /v1/occupancy` (and labels its data as samples whenever the API is unreachable), capture PWA route/manifest, browser camera recording, feature-detected screen recording, MP4/WebM upload client with progress, source registration/list UI, zone picker, job polling with AI result + preview display, pairing-code checks, and RTSP URL encryption at rest.
 
-**Not yet implemented or verified end-to-end:** AI inference, continuous real-time streaming, occupancy/seat estimation, applying the SQL migrations to a live Supabase project, configuring production secrets, and deploying the frontend/API. All dashboard numbers remain labelled sample data. Upload success is not the same as AI processing success.
+The backend implements the inference worker (YOLO/OpenCV), zone occupancy estimation, occupancy snapshots, and continuous RTSP ingestion — verified with unit tests and a real `yolov5s.onnx` model locally.
+
+**Still required for a live product:** applying the SQL migrations to a real Supabase project, configuring production secrets, deploying the frontend/API/worker, and verifying the whole flow end to end on those deployments. Until then the dashboard labels its numbers as sample data. Upload success is not the same as AI processing success — the Capture app shows the AI result only after the worker marks the job completed.
 
 Never put `SUPABASE_SERVICE_ROLE_KEY`, `WIMS_CAPTURE_ACCESS_CODE` or `WIMS_SOURCE_ENCRYPTION_KEY` in frontend environment variables.

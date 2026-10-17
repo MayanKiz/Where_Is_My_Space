@@ -36,29 +36,39 @@ Phone / laptop browser
    Supabase metadata   Private temporary video bucket
           |
           v
-  [Next step] AI worker → zone occupancy snapshots → dashboard
+  AI worker (OpenCV + YOLO person detection)
+          |
+          v
+  Zone occupancy snapshots → live dashboard
 ```
+
+The inference worker (`python -m app.worker`) runs separately from the API. It claims upload jobs from the database, analyses sampled frames with a pinned YOLO ONNX model, stores an annotated preview, writes occupancy snapshots, and deletes the raw clip right after verified processing. In `--mode stream` it also connects continuously to registered RTSP cameras and publishes snapshots at a configured interval.
 
 The web frontend and Python API are separate services. Vercel may host the frontend; the FastAPI service must be deployed separately. Video storage is private and temporary. RTSP addresses are encrypted at rest by the API.
 
 ## Code in this branch
 
 - `web/`: Next.js, TypeScript, Tailwind, dashboard, mobile Capture PWA, MP4/WebM upload client and installable manifest.
-- `backend/`: FastAPI source registry, upload endpoint, pairing-code check, job status API and best-effort temporary-file cleanup.
-- `supabase/migrations/`: initial metadata schema and Capture source registry schema.
+- `backend/`: FastAPI source registry, upload endpoint, pairing-code check, zones/occupancy API, job status + AI preview APIs, per-endpoint rate limiting, and best-effort temporary-file cleanup — plus `app/worker.py`, the OpenCV + YOLO inference worker (durable job queue and RTSP streaming modes).
+- `supabase/migrations/`: initial metadata schema, Capture source registry schema, and AI-worker schema (source→zone link, job claiming columns, private preview bucket).
 - `docs/`: product vision, privacy, system architecture, detection approach, database and MVP requirements.
 - `IMPLEMENTATION_PLAN.md`: step-by-step implementation plan.
 
-## What is not working yet
+## What is verified in this branch
 
-This branch is **not a deployed, verified end-to-end product yet**:
-- Live Supabase migrations and project credentials have not been configured in this conversation.
-- AI inference (YOLO/OpenCV worker), person tracking, zone occupancy/seat estimation, and continuous live streaming are not implemented.
-- Registering an RTSP camera records its metadata and encrypted URL but does not connect to or analyse its stream yet.
-- Upload receipt/job creation is coded but still needs testing against a real Supabase project and deployed API.
-- Dashboard figures are illustrative sample values, not real occupancy.
+Verified locally in this workspace:
+- Frontend: TypeScript, ESLint, and `next build` all pass with the light theme.
+- Backend: `compileall`, 18 unit tests (occupancy maths, rate limiting, YOLO decoding, video analysis), route smoke tests, and worker CLI smoke tests all pass.
+- Real inference: the pinned `yolov5s.onnx` model detects 4 people in a COCO test image (~0.65 s/frame) and a full 30-frame clip run produces a correct peak-person count, a zone-restricted count, and an annotated JPEG preview. The preview was inspected visually.
 
-A video being uploaded is **not** the same as the video being analysed.
+Still required for a real deployment:
+- A real Supabase project with all three migrations applied, plus backend/web secrets (not possible from this repository alone).
+- Running the API + worker + web app against those credentials end to end (upload → AI job → snapshot → dashboard).
+- Deploying the frontend and API separately and verifying both HTTPS endpoints.
+- A live RTSP camera to exercise continuous streaming ingestion.
+- Production-grade identity/access control beyond the shared beta code.
+
+Until those steps happen, the dashboard clearly labels its data as sample values whenever the API/live feed is unavailable. A video being uploaded is **not** the same as the video being analysed, and a job is only marked `completed` by the worker after verified results are persisted.
 
 ## Setup docs
 

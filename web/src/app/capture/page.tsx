@@ -8,7 +8,8 @@ import {
 import Link from "next/link";
 import { ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
 import {
-  CaptureSource, UploadJobResponse, UploadSourceType,
+  CaptureSource, JobStatusResponse, UploadJobResponse, UploadSourceType, WimsZone,
+  fetchJobPreviewUrl, fetchZones, getJobStatus,
   listCaptureSources, registerCaptureSource, uploadVideo,
 } from "@/lib/api";
 import "./capture.css";
@@ -68,6 +69,10 @@ export default function CapturePage() {
   const [rtspUrl, setRtspUrl] = useState("");
   const [isRegistering, setIsRegistering] = useState(false);
   const [cameraName, setCameraName] = useState("Phone camera");
+  const [zones, setZones] = useState<WimsZone[]>([]);
+  const [selectedZoneId, setSelectedZoneId] = useState("");
+  const [jobStatus, setJobStatus] = useState<JobStatusResponse | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const liveVideoRef = useRef<HTMLVideoElement>(null);
   const recordedVideoRef = useRef<HTMLVideoElement>(null);
@@ -89,6 +94,10 @@ export default function CapturePage() {
       setAccessInput(savedCode);
       void authorize(savedCode, true);
     }
+    // Zone configuration is public and does not need the access code.
+    fetchZones()
+      .then((loaded) => setZones(loaded))
+      .catch(() => setZones([]));
     // On unmount, camera/screen permissions are released below.
   }, []);
 
@@ -105,6 +114,63 @@ export default function CapturePage() {
       recordedVideoRef.current.load();
     }
   }, [recordedFile]);
+
+  // Poll the job until the AI worker finishes, then surface the result + preview.
+  useEffect(() => {
+    if (!job) return;
+    let cancelled = false;
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const finishWithPreview = async (id: string) => {
+      try {
+        const url = await fetchJobPreviewUrl(id, accessCode);
+        if (!cancelled) setPreviewUrl(url);
+      } catch {
+        // The preview is optional; the occupancy result is already shown.
+      }
+    };
+
+    const poll = async () => {
+      try {
+        const status = await getJobStatus(job.id, accessCode);
+        if (cancelled) return;
+        setJobStatus(status);
+        const summary = (status.result_summary ?? {}) as Record<string, unknown>;
+        if (status.status === "completed") {
+          const zoneName = typeof summary.zone_name === "string" ? summary.zone_name : null;
+          const peak = typeof summary.persons_peak === "number" ? summary.persons_peak : null;
+          const peakTotal = typeof summary.persons_peak_total === "number" ? summary.persons_peak_total : null;
+          setFeedback({
+            kind: "success",
+            message: peak === null
+              ? "AI processing complete. No persons were detected in the sampled frames."
+              : `AI processing complete: peak ${peak} person${peak === 1 ? "" : "s"}${zoneName ? ` in zone “${zoneName}”` : " counted in frame"} (${peakTotal ?? peak} total observed).`,
+          });
+          if (summary.preview_path) void finishWithPreview(job.id);
+          return;
+        }
+        if (status.status === "failed" || status.status === "expired") {
+          setFeedback({ kind: "error", message: `AI processing ${status.status} for this clip.${typeof summary.message === "string" ? ` ${summary.message}` : ""}` });
+          return;
+        }
+      } catch {
+        // Transient polling errors are retried.
+      }
+      attempts += 1;
+      if (!cancelled && attempts < 60) timer = setTimeout(() => { void poll(); }, 3000);
+    };
+
+    timer = setTimeout(() => { void poll(); }, 2500);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [job, accessCode]);
+
+  useEffect(() => () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+  }, [previewUrl]);
 
   const stopStream = useCallback(() => {
     if (recordTimeoutRef.current) {
@@ -170,6 +236,7 @@ export default function CapturePage() {
     setRecordedFile(null);
     setFeedback(null);
     setJob(null);
+    setJobStatus(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
     if (next === "camera") setSourceName("Phone camera");
     if (next === "screen") setSourceName("Screen recording");
@@ -312,9 +379,11 @@ export default function CapturePage() {
         name: (sourceType === "phone_camera" ? cameraName : sourceName).trim() || defaultName,
         source_type: sourceType,
         device_label: deviceLabel.trim() || (/Android|iPhone|iPad/i.test(navigator.userAgent) ? "Mobile device" : "Browser device"),
+        zone_id: selectedZoneId || undefined,
       }, accessCode);
       setSources((current) => [source, ...current.filter((entry) => entry.id !== source.id)]);
-      const result = await uploadVideo(inputFile, sourceType, source.id, accessCode, setUploadProgress);
+      setJobStatus(null);
+      const result = await uploadVideo(inputFile, sourceType, source.id, accessCode, setUploadProgress, selectedZoneId || null);
       setJob(result);
       setFile(null);
       setRecordedFile(null);
@@ -322,9 +391,10 @@ export default function CapturePage() {
         URL.revokeObjectURL(previewUrlRef.current);
         previewUrlRef.current = null;
       }
+      const zoneName = zones.find((zone) => zone.id === selectedZoneId)?.name;
       setFeedback({
         kind: "success",
-        message: "Upload saved to private temporary storage and the job metadata is in Supabase. AI analysis is not enabled yet, so no occupancy result has been calculated.",
+        message: `Upload saved to private temporary storage and queued for AI person detection${zoneName ? ` in zone “${zoneName}”` : ""}. The result appears below once the worker finishes.`,
       });
       await refreshSources();
     } catch (error) {
@@ -351,11 +421,17 @@ export default function CapturePage() {
         source_type: "rtsp_camera",
         device_label: "External IP camera",
         rtsp_url: rtspUrl.trim(),
+        zone_id: selectedZoneId || undefined,
       }, accessCode);
       setSources((current) => [source, ...current.filter((entry) => entry.id !== source.id)]);
       setExternalName("");
       setRtspUrl("");
-      setFeedback({ kind: "success", message: "Camera metadata registered. The RTSP URL is encrypted server-side; the actual stream connector/AI worker is still a separate step." });
+      setFeedback({
+        kind: "success",
+        message: selectedZoneId
+          ? "Camera registered with its zone and an encrypted URL. The stream worker analyses it continuously and publishes occupancy snapshots."
+          : "Camera registered with an encrypted URL. Select an occupancy zone so the stream worker can publish snapshots for it.",
+      });
     } catch (error) {
       setFeedback({ kind: "error", message: error instanceof Error ? error.message : "Could not register this camera." });
     } finally {
@@ -423,6 +499,7 @@ export default function CapturePage() {
         <div className="capture-form-grid">
           <div className="capture-field"><label htmlFor="source-name">{mode === "external" ? "Camera name" : "Source name"}</label><input id="source-name" value={mode === "external" ? externalName : mode === "camera" ? cameraName : sourceName} onChange={(event) => mode === "external" ? setExternalName(event.target.value) : mode === "camera" ? setCameraName(event.target.value) : setSourceName(event.target.value)} placeholder="e.g. Library rear camera" /></div>
           <div className="capture-field"><label htmlFor="device-label">Device label <span>(optional)</span></label><input id="device-label" value={deviceLabel} onChange={(event) => setDeviceLabel(event.target.value)} placeholder="e.g. Mayank's phone" /></div>
+          {zones.length > 0 && <div className="capture-field"><label htmlFor="zone-select">Occupancy zone <span>(optional)</span></label><select id="zone-select" value={selectedZoneId} onChange={(event) => setSelectedZoneId(event.target.value)}><option value="">No zone — count only</option>{zones.map((zone) => <option key={zone.id} value={zone.id}>{zone.name} · capacity {zone.capacity}</option>)}</select><small>With a zone, occupancy counts only people inside its polygon.</small></div>}
         </div>
 
         {mode === "camera" && <div className="capture-mode-body">
@@ -449,14 +526,14 @@ export default function CapturePage() {
           </button>
           <input ref={fileInputRef} className="sr-only" type="file" accept=".mp4,.webm,video/mp4,video/webm" onChange={onFileChange} />
           {file && <div className="captured-file"><FileVideo2 size={15} /><span><strong>File selected</strong><small>{file.name} · {formatBytes(file.size)}</small></span><button type="button" onClick={() => { setFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} aria-label="Remove selected video"><X size={15} /></button></div>}
-          <p className="mode-hint">The browser sends the chosen file directly to the WIMS API over HTTPS. It is stored in private temporary storage and expires automatically if not processed.</p>
+          <p className="mode-hint">The browser sends the chosen file directly to the WIMS API over HTTPS. It is stored in private temporary storage, analysed by the AI worker, and the raw video is deleted right after processing.</p>
         </div>}
 
         {mode === "external" && <div className="capture-mode-body">
           <div className="external-info"><Radio size={19} /><div><strong>Register an IP camera</strong><span>Use the RTSP / RTSPS URL supplied by the camera administrator. URLs are encrypted by the API before being saved; the browser never receives them back from the source list.</span></div></div>
           <div className="capture-field"><label htmlFor="rtsp-url">RTSP / RTSPS stream URL</label><input id="rtsp-url" type="password" autoComplete="off" value={rtspUrl} onChange={(event) => setRtspUrl(event.target.value)} placeholder="rtsp://camera-host:554/…" /><small>Use credentials only for a camera you are authorized to access. They are sent over HTTPS to the WIMS backend.</small></div>
           <button type="button" className="capture-primary full" onClick={() => void registerExternalCamera()} disabled={isRegistering}><Wifi size={16} /> {isRegistering ? "Saving camera metadata…" : "Register camera"}</button>
-          <p className="mode-hint">This step registers its metadata and encrypted URL. Connecting to the stream and analysing it requires the RTSP worker, which is not enabled yet.</p>
+          <p className="mode-hint">The URL is encrypted server-side and never returned. When a zone is selected, the stream worker connects continuously and publishes occupancy snapshots for this camera.</p>
         </div>}
 
         {(mode === "file" && file || (mode === "camera" || mode === "screen") && recordedFile) && <button type="button" className="capture-primary full upload-action" onClick={() => currentVideo && void sendVideo(mode === "camera" ? "phone_camera" : mode === "screen" ? "screen_share" : "uploaded_video", currentVideo)} disabled={isUploading || !currentVideo}>
@@ -465,7 +542,7 @@ export default function CapturePage() {
         {isUploading && <div className="upload-progress" role="progressbar" aria-valuenow={uploadProgress} aria-valuemin={0} aria-valuemax={100}><span style={{ width: `${uploadProgress}%` }} /></div>}
 
         {feedback && <FeedbackView feedback={feedback} />}
-        {job && <div className="job-result"><div className="job-result-icon"><CheckCircle2 size={17} /></div><div className="job-result-main"><strong>Upload received · Job {job.id.slice(0, 8)}</strong><span>{job.original_filename} · {formatBytes(job.size_bytes)} · status: {job.status}</span><small>Metadata saved. AI detection is not active yet, so this is not an occupancy result.</small></div><button type="button" className="job-copy" onClick={() => { void navigator.clipboard?.writeText(job.id); setFeedback({ kind: "success", message: "Job ID copied." }); }}>Copy ID</button></div>}
+        {job && <div className="job-result"><div className="job-result-icon"><CheckCircle2 size={17} /></div><div className="job-result-main"><strong>Job {job.id.slice(0, 8)} · {jobStatus?.status ?? job.status}</strong><span>{job.original_filename} · {formatBytes(job.size_bytes)}</span><small>{describeJobStatus(jobStatus)}</small>{previewUrl && <img className="job-preview" src={previewUrl} alt="AI preview: detected people with bounding boxes" />}</div><button type="button" className="job-copy" onClick={() => { void navigator.clipboard?.writeText(job.id); setFeedback({ kind: "success", message: "Job ID copied." }); }}>Copy ID</button></div>}
       </section>
 
       <section className="registered-sources">
@@ -475,13 +552,28 @@ export default function CapturePage() {
       </section>
 
       <footer className="capture-footer"><span><ShieldCheck size={14} /> Use footage you have permission to capture.</span><Link href="/">Return to WIMS dashboard <ArrowUpRight size={13} /></Link></footer>
-      <p className="capture-build-note"><HardDrive size={12} /> Current stage: secure source metadata + temporary upload. AI inference and continuous live streaming are not yet enabled.</p>
+      <p className="capture-build-note"><HardDrive size={12} /> Current stage: secure source registry, temporary uploads, and AI person detection with zone occupancy. Choose a zone to get occupancy results.</p>
     </div>
   </main>;
 }
 
 function MapPinMark() {
   return <span className="mini-brand-glyph"><span /><span /><span /></span>;
+}
+
+function describeJobStatus(status: JobStatusResponse | null): string {
+  if (!status) return "Upload received. Waiting for the AI worker — status refreshes every 3 s.";
+  const summary = (status.result_summary ?? {}) as Record<string, unknown>;
+  if (status.status === "completed") {
+    const peak = typeof summary.persons_peak === "number" ? summary.persons_peak : null;
+    const zoneName = typeof summary.zone_name === "string" && summary.zone_name ? ` in “${summary.zone_name}”` : "";
+    if (peak === null) return `AI result${zoneName}: no persons detected in the sampled frames.`;
+    return `AI result${zoneName}: peak ${peak} person${peak === 1 ? "" : "s"} counted (estimate from sampled frames).`;
+  }
+  if (status.status === "failed" || status.status === "expired") {
+    return typeof summary.message === "string" ? summary.message : `Processing ${status.status}.`;
+  }
+  return `Processing… ${status.progress_percent}% — the raw clip is deleted after AI analysis.`;
 }
 
 function FeedbackView({ feedback }: { feedback: Feedback }) {

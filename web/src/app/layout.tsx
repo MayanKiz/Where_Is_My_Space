@@ -10,13 +10,13 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: "WIMS Capture",
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#080b10",
-  colorScheme: "dark",
+  themeColor: "#ffffff",
+  colorScheme: "light",
 };
 
 export default function RootLayout({

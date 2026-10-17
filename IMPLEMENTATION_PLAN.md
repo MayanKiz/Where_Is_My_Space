@@ -22,29 +22,28 @@ Where Is My Space? helps people find suitable available campus spaces. The end-t
 
 ## Implementation state in this PR branch
 
-### Code added (not yet verified end-to-end)
-1. A Next.js / TypeScript / Tailwind web app in `web/`.
-2. A responsive WIMS dashboard with sample data labelled as illustrative.
+### Code added and locally verified
+1. A Next.js / TypeScript / Tailwind web app in `web/` with a light, small-text theme; TypeScript, ESLint and the production build all pass.
+2. A dashboard wired to the live API (`GET /v1/occupancy`, `GET /health`); it shows live zone occupancy and falls back to clearly labelled sample values when the API is unreachable.
 3. A mobile-first installable `/capture` PWA route with four source modes:
    - phone camera recording with browser permission;
    - screen capture only when supported by the mobile browser;
    - MP4/WebM file upload;
-   - registration of an authorized RTSP/RTSPS IP camera.
-4. A FastAPI service for source metadata, private temporary video upload, job creation/status, a shared pairing code, and encryption of RTSP URLs.
-5. Supabase migrations for locations, zones, jobs, occupancy snapshots, source registry, RLS, and a private temporary video bucket.
-6. Basic CI to run TypeScript, ESLint, and production build checks.
+   - registration of an authorized RTSP/RTSPS IP camera (optionally linked to a zone).
+   Plus an occupancy-zone picker, job-status polling with AI results, and the annotated bounding-box preview.
+4. A FastAPI service for source metadata, private temporary video upload, job creation/status, zones (with polygons), a public live-occupancy feed, an AI preview endpoint, a shared pairing code, encryption of RTSP URLs, and per-client rate limiting.
+5. Supabase migrations for locations, zones, jobs, occupancy snapshots, source registry, RLS, a private temporary video bucket, worker job-claiming columns, and a private preview bucket.
+6. An OpenCV + YOLO inference worker (`backend/app/worker.py`): durable job queue backed by `processing_jobs` with atomic claims and stale-claim recovery, pinned SHA-256 model download, person detection on sampled frames, zone-polygon occupancy estimates, annotated previews, immediate raw-video deletion after processing, and continuous RTSP streaming ingestion for zoned cameras.
+7. CI: web (TypeScript, ESLint, production build) and backend (syntax, 18 unit tests, route + worker smoke tests).
+8. Real-model verification: the pinned `yolov5s.onnx` detects 4 people in a COCO test image (~0.65 s/frame on CPU); a full clip run produces correct full-frame and zone-restricted counts and a visually inspected bounding-box preview.
 
-### Still required
-1. **Fix any CI errors** and verify frontend production build.
-2. Configure a real Supabase project and apply migrations in order.
-3. Test source creation/list, MP4/WebM upload, job reads and video expiry cleanup with real credentials.
-4. Build the OpenCV + YOLO inference worker and a durable job queue.
-5. Add person detection and visual preview; do not confuse people count with exact chair occupancy.
-6. Configure per-camera zones/polygons and implement a clearly defined occupancy estimate.
-7. Persist inference output to `occupancy_snapshots` and wire the dashboard to live Supabase/API results.
-8. Add continuous live streaming/RTSP ingestion; current phone modes record a short clip and upload it rather than sending a continuous stream.
-9. Strengthen beta access with production-grade identity/access control, rate limiting and abuse protection.
-10. Deploy frontend and API separately and verify both HTTPS endpoints; configure CORS and environment secrets.
+### Still required (external steps)
+1. Configure a real Supabase project and apply the three migrations in order.
+2. Test source creation/list, MP4/WebM upload, job processing, preview, expiry cleanup and live occupancy with real credentials (API + worker + web app running together).
+3. Deploy frontend and API+worker separately and verify both HTTPS endpoints; configure CORS and environment secrets.
+4. Exercise continuous live streaming with a real RTSP camera (the ingestion code exists but has no camera to test against here).
+5. Strengthen beta access with production-grade identity/access control, external rate limiting and abuse protection.
+6. Refine the occupancy definition (e.g. tracking across frames, seat-level estimates) once real campus footage is available.
 
 ## Security requirements
 
@@ -56,4 +55,4 @@ Where Is My Space? helps people find suitable available campus spaces. The end-t
 
 ## Demo acceptance criteria
 
-The first credible demo should let a second device open the deployed Capture URL, pair using the beta code, record/upload a short clip, and see a persisted source record and upload-job metadata. It must display an explicit **AI processing not enabled** state until the inference worker is implemented. Later acceptance adds bounding boxes, zone counts, timestamps, and dashboard updates based on the actual processed clip.
+The first credible demo should let a second device open the deployed Capture URL, pair using the beta code, record/upload a short clip, and see a persisted source record, an upload-job record, and — once the worker processes it — an AI result (peak persons in the configured zone), an annotated bounding-box preview, and a matching dashboard update from `occupancy_snapshots`. The dashboard must show an explicit **sample data** state whenever live results are not available, and a received upload must never be presented as an AI result.

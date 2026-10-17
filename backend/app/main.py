@@ -13,21 +13,27 @@ from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
 from cryptography.fernet import Fernet, InvalidToken
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, Response, UploadFile
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field as PydanticField
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from starlette.concurrency import run_in_threadpool
 from supabase import Client, create_client
 
+from app.occupancy import availability_status, normalize_polygon
+from app.ratelimit import SlidingWindowLimiter
+
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger("wims.api")
 
 VIDEO_BUCKET = "wims-temporary-videos"
+PREVIEW_BUCKET = "wims-job-previews"
 MP4_SIGNATURE = b"ftyp"
 WEBM_SIGNATURE = b"\x1aE\xdf\xa3"
 CHUNK_SIZE = 1024 * 1024
-SOURCE_COLUMNS = "id,name,source_type,status,device_label,metadata,last_seen_at,created_at,updated_at"
+SOURCE_COLUMNS = "id,name,source_type,status,device_label,location_id,zone_id,metadata,last_seen_at,created_at,updated_at"
+ZONE_COLUMNS = "id,location_id,slug,name,description,capacity,polygon,is_active,is_public,created_at"
 
 
 class Settings(BaseSettings):
@@ -40,6 +46,9 @@ class Settings(BaseSettings):
     max_upload_mib: int = PydanticField(default=100, ge=1, le=512)
     upload_ttl_minutes: int = PydanticField(default=30, ge=5, le=1440)
     temp_upload_dir: str = "/tmp/wims-upload-staging"
+    supabase_preview_bucket: str = PREVIEW_BUCKET
+    rate_limit_per_minute: int = PydanticField(default=120, ge=1, le=10000)
+    upload_rate_limit_per_minute: int = PydanticField(default=10, ge=1, le=1000)
     capture_access_code: str | None = None
     source_encryption_key: str | None = None
 
@@ -202,13 +211,56 @@ app.add_middleware(
     allow_headers=["Content-Type", "Accept", "X-WIMS-Capture-Key"],
 )
 
+_default_limiter = SlidingWindowLimiter(window_seconds=60, max_events=settings.rate_limit_per_minute)
+_upload_limiter = SlidingWindowLimiter(window_seconds=60, max_events=settings.upload_rate_limit_per_minute)
+
+
+def _rate_limit_key(request: Request) -> str:
+    """Best-effort client identity: first X-Forwarded-For hop when behind a proxy."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    if request.url.path.startswith("/v1") and request.method != "OPTIONS":
+        is_upload = request.url.path == "/v1/jobs/upload" and request.method == "POST"
+        limiter = _upload_limiter if is_upload else _default_limiter
+        limit = settings.upload_rate_limit_per_minute if is_upload else settings.rate_limit_per_minute
+        if not limiter.allow(_rate_limit_key(request)):
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "detail": {
+                        "code": "RATE_LIMITED",
+                        "message": f"Too many requests. The limit is {limit} per minute for this endpoint.",
+                    }
+                },
+                headers={"Retry-After": "60"},
+            )
+    return await call_next(request)
+
 
 class SourceCreate(BaseModel):
     name: str = PydanticField(min_length=1, max_length=120)
     source_type: Literal["phone_camera", "screen_share", "uploaded_video", "rtsp_camera"]
     device_label: str | None = PydanticField(default=None, max_length=120)
     location_id: UUID | None = None
+    zone_id: UUID | None = None
     rtsp_url: str | None = PydanticField(default=None, max_length=2048)
+
+
+class ZoneCreate(BaseModel):
+    location_id: UUID
+    slug: str = PydanticField(min_length=1, max_length=60, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+    name: str = PydanticField(min_length=1, max_length=120)
+    description: str | None = PydanticField(default=None, max_length=300)
+    capacity: int = PydanticField(ge=0, le=100000)
+    # Normalised polygon: [[x,y], ...] with 0..1 coordinates.
+    polygon: list[list[float]] | None = None
+    is_public: bool = True
 
 
 @app.get("/health", tags=["system"])
@@ -220,7 +272,7 @@ async def health(request: Request) -> dict[str, Any]:
         "supabase_credentials_configured": getattr(request.app.state, "supabase", None) is not None,
         "capture_access_configured": bool(config.capture_access_code),
         "rtsp_encryption_configured": bool(config.source_encryption_key),
-        "video_processing": "not_implemented",
+        "video_processing": "queued_for_ai_worker",
     }
 
 
@@ -257,6 +309,16 @@ async def register_source(
     elif payload.rtsp_url:
         raise HTTPException(status_code=422, detail="RTSP URL is only accepted for external camera sources.")
 
+    if payload.zone_id:
+        zone_lookup = await run_in_threadpool(
+            lambda: client.table("zones").select("id").eq("id", str(payload.zone_id)).limit(1).execute()
+        )
+        if not zone_lookup.data:
+            raise HTTPException(
+                status_code=422,
+                detail="zone_id must reference an existing zone. Create the zone first (POST /v1/zones).",
+            )
+
     safe_metadata = {"registered_from": "wims-capture"}
     row: dict[str, Any] = {
         "name": payload.name.strip(),
@@ -264,6 +326,7 @@ async def register_source(
         "status": "registered",
         "device_label": payload.device_label.strip() if payload.device_label else None,
         "location_id": str(payload.location_id) if payload.location_id else None,
+        "zone_id": str(payload.zone_id) if payload.zone_id else None,
         "metadata": safe_metadata,
     }
     if encrypted_url:
@@ -386,7 +449,7 @@ async def upload_video(
             "expires_at": (now + timedelta(minutes=config.upload_ttl_minutes)).isoformat(),
             "result_summary": {
                 "stage": "upload_received",
-                "message": "Video received. AI processing worker is not enabled in this build yet.",
+                "message": "Video received and queued for AI person detection by the inference worker.",
             },
         }
         await run_in_threadpool(lambda: client.table("processing_jobs").insert(job_payload).execute())
@@ -402,7 +465,7 @@ async def upload_video(
             "size_bytes": size_bytes,
             "created_at": now.isoformat(),
             "expires_at": job_payload["expires_at"],
-            "message": "Video uploaded to private temporary storage. AI processing is not enabled in this build yet.",
+            "message": "Video uploaded to private temporary storage and queued for AI processing.",
         }
     except HTTPException:
         if object_uploaded and storage_path:
@@ -440,7 +503,7 @@ async def get_job_status(
         response = await run_in_threadpool(
             lambda: (
                 client.table("processing_jobs")
-                .select("id,source_id,source_type,status,progress_percent,original_filename,mime_type,size_bytes,created_at,started_at,finished_at,result_summary,error_code")
+                .select("id,source_id,zone_id,source_type,status,progress_percent,original_filename,mime_type,size_bytes,created_at,started_at,finished_at,result_summary,error_code")
                 .eq("id", str(job_id))
                 .limit(1)
                 .execute()
@@ -453,3 +516,180 @@ async def get_job_status(
     if not response.data:
         raise HTTPException(status_code=404, detail="Processing job not found.")
     return response.data[0]
+
+
+@app.get("/v1/zones", tags=["zones"])
+async def list_zones(client: Client = Depends(require_supabase)) -> dict[str, Any]:
+    """Public zone configuration used by the dashboard (capacity + polygons)."""
+    try:
+        response = await run_in_threadpool(
+            lambda: (
+                client.table("zones")
+                .select(ZONE_COLUMNS + ",locations(name,campus_name)")
+                .eq("is_active", True)
+                .eq("is_public", True)
+                .order("name")
+                .limit(200)
+                .execute()
+            )
+        )
+    except Exception as exc:
+        logger.exception("Could not list WIMS zones.")
+        raise HTTPException(status_code=502, detail="Could not load zones. Check that all migrations are applied.") from exc
+    return {"zones": response.data or []}
+
+
+@app.post("/v1/zones", status_code=201, tags=["zones"], dependencies=[Depends(require_capture_access)])
+async def create_zone(
+    payload: ZoneCreate,
+    client: Client = Depends(require_supabase),
+) -> dict[str, Any]:
+    polygon = None
+    if payload.polygon is not None:
+        polygon = normalize_polygon(payload.polygon)
+        if polygon is None:
+            raise HTTPException(
+                status_code=422,
+                detail="polygon must be a list of at least 3 [x, y] points with 0..1 coordinates.",
+            )
+
+    location_lookup = await run_in_threadpool(
+        lambda: client.table("locations").select("id").eq("id", str(payload.location_id)).limit(1).execute()
+    )
+    if not location_lookup.data:
+        raise HTTPException(status_code=422, detail="location_id must reference an existing location.")
+
+    row = {
+        "location_id": str(payload.location_id),
+        "slug": payload.slug,
+        "name": payload.name.strip(),
+        "description": payload.description,
+        "capacity": payload.capacity,
+        "polygon": [list(point) for point in polygon] if polygon else None,
+        "is_public": payload.is_public,
+        "is_active": True,
+    }
+    try:
+        response = await run_in_threadpool(lambda: client.table("zones").insert(row).execute())
+    except Exception as exc:
+        message = str(exc).lower()
+        if "duplicate" in message or "unique" in message:
+            raise HTTPException(status_code=409, detail="A zone with this slug already exists in this location.") from exc
+        logger.exception("Could not create a WIMS zone.")
+        raise HTTPException(status_code=502, detail="Could not save the zone.") from exc
+    if not response.data:
+        raise HTTPException(status_code=502, detail="Zone creation did not return a saved record.")
+    return {key: response.data[0].get(key) for key in ZONE_COLUMNS.split(",")}
+
+
+@app.get("/v1/occupancy", tags=["occupancy"])
+async def get_live_occupancy(client: Client = Depends(require_supabase)) -> dict[str, Any]:
+    """Latest persisted occupancy per public zone — the dashboard's live feed."""
+    try:
+        zones_response = await run_in_threadpool(
+            lambda: (
+                client.table("zones")
+                .select(ZONE_COLUMNS + ",locations(name,campus_name)")
+                .eq("is_active", True)
+                .eq("is_public", True)
+                .limit(200)
+                .execute()
+            )
+        )
+        public_locations = await run_in_threadpool(
+            lambda: client.table("locations").select("id,name").eq("is_public", True).limit(200).execute()
+        )
+        snapshots = await run_in_threadpool(
+            lambda: (
+                client.table("occupancy_snapshots")
+                .select("zone_id,occupied_count,capacity_count,confidence,observed_at")
+                .order("observed_at", desc=True)
+                .limit(500)
+                .execute()
+            )
+        )
+    except Exception as exc:
+        logger.exception("Could not read live occupancy.")
+        raise HTTPException(
+            status_code=502,
+            detail="Could not load live occupancy. Check that the Supabase migrations are applied.",
+        ) from exc
+
+    allowed_locations = {row["id"]: row.get("name") for row in (public_locations.data or [])}
+    latest: dict[str, dict[str, Any]] = {}
+    for snap in snapshots.data or []:
+        if snap.get("zone_id") not in latest:
+            latest[snap["zone_id"]] = snap
+
+    zones_output: list[dict[str, Any]] = []
+    for zone in zones_response.data or []:
+        location_id = zone.get("location_id")
+        if location_id not in allowed_locations:
+            continue
+        snap = latest.get(zone["id"])
+        occupied = snap.get("occupied_count") if snap else None
+        capacity = zone.get("capacity")
+        zones_output.append(
+            {
+                "id": zone["id"],
+                "name": zone["name"],
+                "slug": zone.get("slug"),
+                "description": zone.get("description"),
+                "capacity": capacity,
+                "location_id": location_id,
+                "location_name": zone.get("locations", {}).get("name")
+                if isinstance(zone.get("locations"), dict)
+                else allowed_locations.get(location_id),
+                "observed_at": snap.get("observed_at") if snap else None,
+                "confidence": snap.get("confidence") if snap else None,
+                "has_live_data": snap is not None,
+                "status": availability_status(occupied, capacity) if occupied is not None else "No data",
+                "available_count": capacity - occupied if occupied is not None else None,
+            }
+        )
+
+    zones_output.sort(key=lambda item: item["name"] or "")
+    return {"generated_at": datetime.now(timezone.utc).isoformat(), "zones": zones_output}
+
+
+@app.get("/v1/jobs/{job_id}/preview", tags=["jobs"], dependencies=[Depends(require_capture_access)])
+async def get_job_preview(
+    job_id: UUID,
+    client: Client = Depends(require_supabase),
+) -> Response:
+    """Annotated preview (bounding boxes) for a completed AI job."""
+    config: Settings = settings
+    try:
+        response = await run_in_threadpool(
+            lambda: (
+                client.table("processing_jobs")
+                .select("result_summary,status")
+                .eq("id", str(job_id))
+                .limit(1)
+                .execute()
+            )
+        )
+    except Exception as exc:
+        logger.exception("Could not read preview metadata for job %s", job_id)
+        raise HTTPException(status_code=502, detail="Could not load the preview record.") from exc
+    if not response.data:
+        raise HTTPException(status_code=404, detail="Processing job not found.")
+    job = response.data[0]
+    preview_path = (job.get("result_summary") or {}).get("preview_path")
+    if not preview_path or job.get("status") != "completed":
+        raise HTTPException(
+            status_code=404,
+            detail="No AI preview is available for this job yet. It appears after the worker completes processing.",
+        )
+    try:
+        image_bytes = await run_in_threadpool(
+            lambda: client.storage.from_(config.supabase_preview_bucket).download(preview_path)
+        )
+    except Exception as exc:
+        logger.exception("Could not download preview %s for job %s", preview_path, job_id)
+        raise HTTPException(status_code=502, detail="The preview image could not be loaded.") from exc
+    return Response(
+        content=image_bytes,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "private, max-age=600"},
+    )

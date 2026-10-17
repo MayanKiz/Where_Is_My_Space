@@ -29,9 +29,11 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install API dependencies
-        run: python -m pip install -r requirements.txt
+        run: python -m pip install -r requirements-dev.txt
       - name: Check Python syntax
         run: python -m compileall -q app
+      - name: Run unit tests
+        run: python -m pytest tests -q
       - name: Smoke-test FastAPI app and routes
         run: |
           python - <<'PY'
@@ -42,9 +44,29 @@ jobs:
               "/v1/sources",
               "/v1/jobs/upload",
               "/v1/jobs/{job_id}",
+              "/v1/jobs/{job_id}/preview",
+              "/v1/zones",
+              "/v1/occupancy",
           }
           missing = required - paths
           if missing:
               raise SystemExit(f"Missing expected API routes: {sorted(missing)}")
           print("WIMS API import and route smoke test passed.")
           PY
+      - name: Smoke-test AI worker entry points
+        run: |
+          python - <<'PY'
+          from app.worker import WorkerSettings, build_detector, run
+          from app.detector import YoloDetector, parse_detections
+          from app.occupancy import availability_status, point_in_polygon
+
+          settings = WorkerSettings(_env_file=None)
+          assert settings.supabase_video_bucket == "wims-temporary-videos"
+          detector = build_detector(settings)
+          assert isinstance(detector, YoloDetector)
+          assert availability_status(0, 10) == "Available"
+          assert point_in_polygon(0.5, 0.5, [(0,0),(1,0),(1,1),(0,1)])
+          print("WIMS worker import and dependency smoke test passed.")
+          PY
+          python -m app.worker --help >/dev/null
+          echo "WIMS worker CLI smoke test passed."

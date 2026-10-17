@@ -19,6 +19,8 @@ export type NewCaptureSource = {
   source_type: CaptureSourceType;
   device_label?: string;
   rtsp_url?: string;
+  location_id?: string;
+  zone_id?: string;
 };
 
 export type UploadJobResponse = {
@@ -107,6 +109,7 @@ export function uploadVideo(
   sourceId: string,
   accessCode: string,
   onProgress: (percent: number) => void,
+  zoneId?: string | null,
 ): Promise<UploadJobResponse> {
   const baseUrl = getWimsApiUrl();
   if (!baseUrl) {
@@ -144,6 +147,7 @@ export function uploadVideo(
     body.append("file", file, file.name);
     body.append("source_type", sourceType);
     body.append("source_id", sourceId);
+    if (zoneId) body.append("zone_id", zoneId);
     request.send(body);
   });
 }
@@ -158,4 +162,91 @@ export async function getJobStatus(jobId: string, accessCode: string): Promise<J
   });
   if (!response.ok) throw new Error(await apiErrorMessage(response));
   return (await response.json()) as JobStatusResponse;
+}
+
+export type WimsZone = {
+  id: string;
+  location_id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  capacity: number;
+  polygon: number[][] | null;
+  is_active: boolean;
+  is_public: boolean;
+  created_at: string;
+  locations?: { name: string; campus_name?: string | null } | null;
+};
+
+export type OccupancyZone = {
+  id: string;
+  name: string;
+  slug: string | null;
+  description: string | null;
+  capacity: number;
+  location_id: string;
+  location_name: string | null;
+  observed_at: string | null;
+  confidence: number | null;
+  has_live_data: boolean;
+  status: string;
+  available_count: number | null;
+};
+
+export type OccupancyFeed = {
+  generated_at: string;
+  zones: OccupancyZone[];
+};
+
+export type WimsHealth = {
+  status: string;
+  service: string;
+  supabase_credentials_configured: boolean;
+  capture_access_configured: boolean;
+  rtsp_encryption_configured: boolean;
+  video_processing: string;
+};
+
+export async function fetchHealth(): Promise<WimsHealth> {
+  const baseUrl = getWimsApiUrl();
+  if (!baseUrl) throw new Error("The WIMS API URL is not configured.");
+  const response = await fetch(`${baseUrl}/health`, { cache: "no-store" });
+  if (!response.ok) throw new Error(`WIMS API health check failed (HTTP ${response.status}).`);
+  return (await response.json()) as WimsHealth;
+}
+
+export async function fetchLiveOccupancy(): Promise<OccupancyFeed> {
+  const baseUrl = getWimsApiUrl();
+  if (!baseUrl) throw new Error("The WIMS API URL is not configured.");
+  const response = await fetch(`${baseUrl}/v1/occupancy`, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(await apiErrorMessage(response));
+  return (await response.json()) as OccupancyFeed;
+}
+
+export async function fetchZones(): Promise<WimsZone[]> {
+  const baseUrl = getWimsApiUrl();
+  if (!baseUrl) throw new Error("The WIMS API URL is not configured.");
+  const response = await fetch(`${baseUrl}/v1/zones`, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(await apiErrorMessage(response));
+  const payload = (await response.json()) as { zones?: WimsZone[] };
+  return payload.zones ?? [];
+}
+
+/** Downloads the annotated AI preview (bounding boxes) as a local object URL. */
+export async function fetchJobPreviewUrl(jobId: string, accessCode: string): Promise<string> {
+  const baseUrl = getWimsApiUrl();
+  if (!baseUrl) throw new Error("The WIMS API URL is not configured.");
+  const response = await fetch(`${baseUrl}/v1/jobs/${encodeURIComponent(jobId)}/preview`, {
+    headers: captureHeaders(accessCode),
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(await apiErrorMessage(response));
+  const blob = await response.blob();
+  return URL.createObjectURL(blob);
 }
