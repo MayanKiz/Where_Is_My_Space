@@ -1,80 +1,371 @@
+यह `README.md` में paste कर दें:
+
+```md
 # Where Is My Space? (WIMS)
 
 > **Find your space before you reach there.**  
 > Intelligence for physical spaces.
 
-WIMS is a campus spatial-intelligence project intended to estimate how spaces are being used and help people find a suitable study area before walking there.
+WIMS is a campus spatial-intelligence project that estimates how spaces are being used and helps people find suitable study areas before walking there.
 
-## The single-app experience
+## Live Application
 
-The web app includes a mobile-first **WIMS Capture** route at `/capture`. Open the deployed link on a phone; users do not install Python, OpenCV, or YOLO on their own device.
+**Frontend:** https://where-is-my-space-wims.vercel.app
 
-Capture modes:
-- **Phone camera:** request camera permission, record a short clip, review, and upload it.
-- **Screen share:** use the browser's display-capture API when available. Mobile support varies, so the phone's built-in screen recorder followed by file upload is the fallback.
-- **Video file:** upload a recorded MP4 or WebM.
-- **CCTV / IP camera:** register an authorized RTSP/RTSPS source. The URL is encrypted by the backend and is not returned in source-list responses.
+The web app includes a mobile-first **WIMS Capture** route at `/capture`. Users can open the deployed link on a phone without installing Python, OpenCV, or YOLO.
 
-The PWA can be added to a phone's Home Screen. Capture access uses a shared beta pairing code configured on the backend; it is not a full user-account system.
+## Features
 
-## Current architecture
+- Live occupancy dashboard
+- Mobile-first video capture interface
+- Phone camera recording
+- Screen-share recording where supported
+- MP4 and WebM video upload
+- Authorized RTSP/IP camera registration
+- Occupancy zones with polygon support
+- AI person detection using OpenCV and YOLO
+- Annotated preview frames with bounding boxes
+- Durable background processing jobs
+- Private temporary video storage
+- Automatic raw-video cleanup after processing
+- Supabase-backed metadata and occupancy snapshots
+- Installable PWA support
+
+## Architecture
 
 ```text
-Phone / laptop browser
-    ├── Camera recording
-    ├── Screen recording (browser dependent)
-    ├── MP4 / WebM upload
-    └── Authorized RTSP source registration
-                |
-                v
-       WIMS Capture (Next.js PWA)
-                |
-                v
-        FastAPI upload API
-          |             |
-          v             v
-   Supabase metadata   Private temporary video bucket
-          |
-          v
-  AI worker (OpenCV + YOLO person detection)
-          |
-          v
-  Zone occupancy snapshots → live dashboard
+Phone / Laptop Browser
+        |
+        v
+Next.js Frontend on Vercel
+        |
+        v
+FastAPI Upload API
+        |
+        +----------------------+
+        |                      |
+        v                      v
+Supabase Metadata       Private Video Storage
+        |
+        v
+AI Worker
+(OpenCV + YOLO)
+        |
+        v
+Occupancy Snapshots
+        |
+        v
+Live Dashboard
 ```
 
-The inference worker (`python -m app.worker`) runs separately from the API. It claims upload jobs from the database, analyses sampled frames with a pinned YOLO ONNX model, stores an annotated preview, writes occupancy snapshots, and deletes the raw clip right after verified processing. In `--mode stream` it also connects continuously to registered RTSP cameras and publishes snapshots at a configured interval.
+## Project Structure
 
-The web frontend and Python API are separate services. Vercel may host the frontend; the FastAPI service must be deployed separately. Video storage is private and temporary. RTSP addresses are encrypted at rest by the API.
+```text
+.
+├── backend/
+│   ├── app/
+│   │   ├── detector.py
+│   │   ├── main.py
+│   │   ├── occupancy.py
+│   │   ├── ratelimit.py
+│   │   └── worker.py
+│   ├── tests/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── .env.example
+├── web/
+│   ├── src/
+│   ├── public/
+│   ├── package.json
+│   └── .env.example
+├── supabase/
+│   └── migrations/
+├── docs/
+├── IMPLEMENTATION_PLAN.md
+└── WIMS_SETUP_REPORT.md
+```
 
-## Code in this branch
+## Frontend
 
-- `web/`: Next.js, TypeScript, Tailwind, dashboard, mobile Capture PWA, MP4/WebM upload client and installable manifest.
-- `backend/`: FastAPI source registry, upload endpoint, pairing-code check, zones/occupancy API, job status + AI preview APIs, per-endpoint rate limiting, and best-effort temporary-file cleanup — plus `app/worker.py`, the OpenCV + YOLO inference worker (durable job queue and RTSP streaming modes).
-- `supabase/migrations/`: initial metadata schema, Capture source registry schema, and AI-worker schema (source→zone link, job claiming columns, private preview bucket).
-- `docs/`: product vision, privacy, system architecture, detection approach, database and MVP requirements.
-- `IMPLEMENTATION_PLAN.md`: step-by-step implementation plan.
+The frontend is built with:
 
-## What is verified in this branch
+- Next.js
+- React
+- TypeScript
+- Tailwind CSS
+- Supabase JavaScript client
 
-Verified locally in this workspace:
-- Frontend: TypeScript, ESLint, and `next build` all pass with the light theme.
-- Backend: `compileall`, 18 unit tests (occupancy maths, rate limiting, YOLO decoding, video analysis), route smoke tests, and worker CLI smoke tests all pass.
-- Real inference: the pinned `yolov5s.onnx` model detects 4 people in a COCO test image (~0.65 s/frame) and a full 30-frame clip run produces a correct peak-person count, a zone-restricted count, and an annotated JPEG preview. The preview was inspected visually.
+### Frontend Routes
 
-Still required for a real deployment:
-- A real Supabase project with all three migrations applied, plus backend/web secrets (not possible from this repository alone).
-- Running the API + worker + web app against those credentials end to end (upload → AI job → snapshot → dashboard).
-- Deploying the frontend and API separately and verifying both HTTPS endpoints.
-- A live RTSP camera to exercise continuous streaming ingestion.
-- Production-grade identity/access control beyond the shared beta code.
+| Route | Description |
+|---|---|
+| `/` | Occupancy dashboard |
+| `/capture` | Mobile capture and upload studio |
+| `/manifest.webmanifest` | PWA manifest |
 
-Until those steps happen, the dashboard clearly labels its data as sample values whenever the API/live feed is unavailable. A video being uploaded is **not** the same as the video being analysed, and a job is only marked `completed` by the worker after verified results are persisted.
+### Run Frontend Locally
 
-## Setup docs
+```bash
+cd web
+npm install
+cp .env.example .env.local
+npm run dev
+```
 
-- Frontend and phone installation: [`web/README.md`](web/README.md)
-- FastAPI and Supabase setup: [`backend/README.md`](backend/README.md)
-- Product and technical documents: [`docs/`](docs/)
-- Implementation steps: [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md)
+Open:
 
-Use only camera footage you are authorized to capture. WIMS does not need face recognition; keep raw footage temporary and persist the minimum useful occupancy metadata.
+```text
+http://localhost:3000
+```
+
+Set the API URL in `web/.env.local`:
+
+```env
+NEXT_PUBLIC_WIMS_API_URL=http://localhost:8000
+```
+
+### Frontend Checks
+
+```bash
+npm run typecheck
+npm run lint
+npm run build
+```
+
+## Backend API
+
+The backend is built with:
+
+- FastAPI
+- Python
+- Supabase
+- OpenCV
+- YOLO ONNX
+- Pydantic Settings
+
+### Main API Endpoints
+
+| Endpoint | Description |
+|---|---|
+| `GET /health` | Service and configuration health |
+| `GET /v1/sources` | List registered sources |
+| `POST /v1/sources` | Register a capture or RTSP source |
+| `POST /v1/jobs/upload` | Upload a video and create a processing job |
+| `GET /v1/jobs/{job_id}` | Get processing status |
+| `GET /v1/jobs/{job_id}/preview` | Get annotated AI preview |
+| `GET /v1/zones` | List occupancy zones |
+| `POST /v1/zones` | Create a zone |
+| `GET /v1/occupancy` | Get the latest public occupancy data |
+
+Capture, upload, job-status, and preview requests require the configured beta pairing header:
+
+```text
+X-WIMS-Capture-Key
+```
+
+### Run Backend Locally
+
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+```
+
+Start the API:
+
+```bash
+uvicorn app.main:app --reload --port 8000
+```
+
+Start the AI worker separately:
+
+```bash
+python -m app.worker --mode all
+```
+
+Available worker modes:
+
+```bash
+python -m app.worker --mode jobs
+python -m app.worker --mode stream
+python -m app.worker --mode all
+python -m app.worker --mode jobs --once
+```
+
+### Backend Tests
+
+```bash
+python -m compileall -q app
+python -m pytest tests -q
+```
+
+## Environment Variables
+
+### Frontend
+
+```env
+NEXT_PUBLIC_WIMS_API_URL=https://your-api-domain.example
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+```
+
+Never put backend secrets in frontend variables.
+
+### Backend
+
+```env
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+
+SUPABASE_VIDEO_BUCKET=wims-temporary-videos
+SUPABASE_PREVIEW_BUCKET=wims-job-previews
+
+CORS_ORIGINS=https://where-is-my-space-wims.vercel.app
+
+MAX_UPLOAD_MIB=100
+UPLOAD_TTL_MINUTES=30
+TEMP_UPLOAD_DIR=/tmp/wims-upload-staging
+
+RATE_LIMIT_PER_MINUTE=120
+UPLOAD_RATE_LIMIT_PER_MINUTE=10
+
+WIMS_CAPTURE_ACCESS_CODE=
+WIMS_SOURCE_ENCRYPTION_KEY=
+
+YOLO_MODEL_PATH=models/yolov5s.onnx
+YOLO_MODEL_URL=https://github.com/ultralytics/yolov5/releases/download/v7.0/yolov5s.onnx
+DETECTION_CONFIDENCE=0.35
+DETECTION_IOU=0.45
+FRAME_STRIDE=5
+MAX_SAMPLED_FRAMES=60
+POLL_SECONDS=5
+STALE_CLAIM_MINUTES=30
+KEEP_RAW_VIDEO=false
+STREAM_INTERVAL_SECONDS=10
+```
+
+Never expose these values:
+
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `WIMS_CAPTURE_ACCESS_CODE`
+- `WIMS_SOURCE_ENCRYPTION_KEY`
+
+## Supabase Setup
+
+Apply the following migrations in order:
+
+```text
+supabase/migrations/20261010150000_initial_wims_schema.sql
+supabase/migrations/20261010160000_wims_capture_sources.sql
+supabase/migrations/20261017120000_wims_ai_worker.sql
+```
+
+The migrations create:
+
+- Locations
+- Occupancy zones
+- Processing jobs
+- Occupancy snapshots
+- Video source registry
+- Worker job-claiming fields
+- Private temporary video bucket
+- Private AI preview bucket
+- Row-level security policies
+- Required indexes and constraints
+
+### Supabase Security
+
+- Raw videos are stored in private storage.
+- RTSP URLs are encrypted before being stored.
+- Browser clients cannot access service-managed jobs.
+- Browser clients cannot access saved RTSP URLs.
+- Raw videos are deleted after verified processing.
+- Only derived occupancy metadata is retained.
+
+## AI Worker
+
+The AI worker:
+
+1. Claims queued jobs atomically.
+2. Recovers stale jobs from crashed workers.
+3. Downloads and verifies the pinned YOLO model.
+4. Samples video frames using OpenCV.
+5. Detects people.
+6. Applies optional occupancy-zone polygons.
+7. Calculates peak occupancy.
+8. Uploads an annotated preview to private storage.
+9. Saves occupancy snapshots.
+10. Deletes the raw video after successful processing.
+
+A job is marked `completed` only after processing results have been persisted successfully.
+
+## Deployment Status
+
+### Frontend
+
+- Platform: Vercel
+- Project: `where-is-my-space-wims`
+- Repository: `MayanKiz/Where_Is_My_Space`
+- Root directory: `web/`
+- Status: Deployed
+
+### Backend and Worker
+
+The FastAPI backend and AI worker must run on a persistent service that supports:
+
+- Docker or Python
+- Long-running processes
+- Environment secrets
+- Health checks
+- Automatic restarts
+- Persistent worker execution
+
+The backend and worker are not deployed until a suitable persistent host and production secrets are configured.
+
+## Production Setup Checklist
+
+- [x] Repository implementation audited
+- [x] Frontend TypeScript checks passed
+- [x] Frontend lint passed
+- [x] Frontend production build passed
+- [x] Backend compilation passed
+- [x] Backend unit tests passed
+- [x] Supabase project verified
+- [x] All three Supabase migrations applied
+- [x] RLS and private storage verified
+- [x] Correct Vercel project created
+- [x] Frontend deployed to Vercel
+- [ ] Backend API deployed
+- [ ] AI worker deployed
+- [ ] Production environment variables configured
+- [ ] End-to-end upload and AI processing tested
+- [ ] Live RTSP camera tested
+- [ ] Production-grade authentication added
+
+## Privacy and Safety
+
+Use only camera footage that you are authorized to capture.
+
+WIMS does not use face recognition. The system stores occupancy metadata instead of biometric identities. Raw video should be temporary and deleted after processing.
+
+Do not commit:
+
+- `.env` files
+- Service-role keys
+- API tokens
+- Capture pairing codes
+- Encryption keys
+- Private camera URLs
+
+## Documentation
+
+Additional documentation is available in the [`docs/`](docs/) directory.
+
+The complete setup audit is available in [`WIMS_SETUP_REPORT.md`](WIMS_SETUP_REPORT.md).
+
+## License
+
+See [`LICENSE`](LICENSE).
+```
