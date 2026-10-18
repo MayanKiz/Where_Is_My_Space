@@ -13,6 +13,7 @@ dist/
 __pycache__/
 *.py[cod]
 .venv/
+.venv-live/
 venv/
 .pytest_cache/
 
