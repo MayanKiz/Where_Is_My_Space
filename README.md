@@ -457,6 +457,30 @@ The AI worker:
 
 A job is marked `completed` only after processing results have been persisted successfully.
 
+## Fast local webcam demo (Windows)
+
+This demo runs locally on your laptop and does not require Supabase, a deployed API, or a Render account. It reuses the existing OpenCV + YOLO detector and keeps desktop OpenCV separate from the headless server dependencies.
+
+1. Download/clone the repository and open PowerShell in `Where_Is_My_Space\backend`.
+2. Start the demo with one command:
+
+   ```powershell
+   .\run_live_demo.bat
+   ```
+
+   First run creates an isolated `.venv-live`, installs the small desktop-camera dependency set, and downloads the pinned YOLO model. These steps take longer only the first time. Later runs reuse the environment and model.
+
+3. In the camera window, press **P**, left-click at least three corners around the seating area, then press **P** again to finish the polygon. Right-click removes the last corner while editing; **C** clears the zone; **Q** exits.
+4. Set the seat capacity when starting the demo, for example:
+
+   ```powershell
+   .\run_live_demo.bat --capacity 42
+   ```
+
+If the laptop webcam does not open, close apps that may be using it or try `.\run_live_demo.bat --camera 1`. Allow camera access in Windows privacy settings. The first YOLO model download requires internet access.
+
+**Interpretation:** the total count is the number of people detected in the camera frame. The zone count is people whose lower bounding-box centre falls inside your drawn polygon. “Estimated seats remaining” is capacity minus that zone count, clamped at zero; it is an occupancy estimate, not direct detection of individual chairs. This local demo does not upload or save camera frames.
+
 ## Deployment Status
 
 ### Frontend
