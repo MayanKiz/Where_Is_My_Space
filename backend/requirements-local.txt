@@ -1,0 +1,4 @@
+# Lightweight dependencies for the local webcam demo only.
+# Keep this separate from requirements.txt so the server can use headless OpenCV.
+numpy>=1.26,<3
+opencv-python>=4.9,<6
