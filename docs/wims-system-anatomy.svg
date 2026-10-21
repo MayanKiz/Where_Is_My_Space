@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640" role="img" aria-labelledby="title desc">
+<title id="title">WIMS — from campus camera to available-space dashboard</title>
+<desc id="desc">An isometric technical illustration showing a campus study area observed by a camera, a laptop running people detection, an occupancy engine, and a live dashboard that helps students find available seats. Only counts and occupancy metadata are stored, not raw video.</desc>
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0b1220"/><stop offset="1" stop-color="#172554"/></linearGradient>
+  <linearGradient id="metal" x1="0" y1="0" x2="0.9" y2="1"><stop stop-color="#e2e8f0"/><stop offset="1" stop-color="#64748b"/></linearGradient>
+  <linearGradient id="screen" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#172554"/><stop offset="1" stop-color="#0f766e"/></linearGradient>
+  <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%"><feDropShadow dx="0" dy="10" stdDeviation="9" flood-color="#020617" flood-opacity=".35"/></filter>
+  <marker id="arrow" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#67e8f9"/></marker>
+</defs>
+<rect width="1200" height="640" rx="28" fill="url(#bg)"/>
+<g opacity=".12" stroke="#93c5fd" stroke-width="1"><path d="M0 100H1200M0 180H1200M0 260H1200M0 340H1200M0 420H1200M0 500H1200M0 580H1200"/><path d="M100 0V640M200 0V640M300 0V640M400 0V640M500 0V640M600 0V640M700 0V640M800 0V640M900 0V640M1000 0V640M1100 0V640"/></g>
+<text x="56" y="58" fill="#f8fafc" font-family="Inter,Arial,sans-serif" font-size="28" font-weight="800" letter-spacing="1.5">WIMS / SYSTEM ANATOMY</text>
+<text x="57" y="86" fill="#a5f3fc" font-family="Inter,Arial,sans-serif" font-size="15">Where Is My Space? · Campus seat availability pipeline</text>
+<!-- campus base -->
+<g filter="url(#shadow)">
+<path d="M52 390 L262 278 L470 390 L260 506 Z" fill="#1e3a5f" stroke="#60a5fa" stroke-opacity=".65"/>
+<path d="M52 390 L260 506 L260 526 L52 410Z" fill="#142b49"/><path d="M260 506 L470 390 L470 410 L260 526Z" fill="#0f2440"/>
+<!-- building -->
+<path d="M102 337 L202 282 L305 340 L205 395Z" fill="#cbd5e1"/><path d="M102 337 L205 395 L205 435 L102 377Z" fill="#64748b"/><path d="M205 395 L305 340 L305 380 L205 435Z" fill="#94a3b8"/>
+<path d="M120 331 L202 286 L285 333 L204 379Z" fill="#f8fafc" stroke="#64748b"/>
+<path d="M137 330 L202 294 L267 331 L203 367Z" fill="#bae6fd"/>
+<path d="M146 327 L146 346 M167 316 L167 355 M188 304 L188 365 M211 305 L211 365 M233 317 L233 354 M254 329 L254 342" stroke="#2563eb" stroke-width="5"/>
+<path d="M183 285 L202 274 L223 286 L203 298Z" fill="#fbbf24"/><path d="M183 285V310L203 322V298Z" fill="#d97706"/><path d="M203 298L223 286V311L203 322Z" fill="#f59e0b"/>
+<!-- tables -->
+<path d="M118 407L162 383L204 406L160 431Z" fill="#0f766e"/><path d="M118 407V419L160 444V431Z" fill="#115e59"/><path d="M160 431L204 406V418L160 444Z" fill="#134e4a"/>
+<path d="M278 416L319 393L359 416L318 440Z" fill="#0f766e"/><path d="M278 416V428L318 452V440Z" fill="#115e59"/><path d="M318 440L359 416V428L318 452Z" fill="#134e4a"/>
+<!-- people -->
+<g stroke="#0f172a" stroke-width="2"><circle cx="153" cy="373" r="9" fill="#fbbf24"/><path d="M143 386L153 379L164 386L164 405L143 405Z" fill="#fb7185"/><circle cx="318" cy="381" r="9" fill="#fbbf24"/><path d="M308 394L318 387L329 394L329 411L308 411Z" fill="#a78bfa"/><circle cx="234" cy="390" r="8" fill="#fbbf24"/><path d="M225 401L234 395L243 401L243 416L225 416Z" fill="#38bdf8"/></g>
+</g>
+<text x="72" y="548" fill="#f8fafc" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="700">01 / CAMPUS SPACE</text><text x="72" y="571" fill="#cbd5e1" font-family="Inter,Arial,sans-serif" font-size="14">Library · canteen · study zones</text>
+<!-- camera -->
+<g filter="url(#shadow)">
+<path d="M347 218L388 195L431 219L390 243Z" fill="#94a3b8"/><path d="M347 218V240L390 265V243Z" fill="#475569"/><path d="M390 243L431 219V241L390 265Z" fill="#64748b"/>
+<path d="M369 204L402 185L426 199L393 218Z" fill="#e2e8f0"/><path d="M369 204V220L393 234V218Z" fill="#94a3b8"/><path d="M393 218L426 199V215L393 234Z" fill="#64748b"/>
+<ellipse cx="411" cy="204" rx="10" ry="8" fill="#0f172a"/><ellipse cx="412" cy="204" rx="5" ry="4" fill="#22d3ee"/><path d="M379 184L393 176L412 187L398 195Z" fill="#cbd5e1"/>
+</g>
+<text x="345" y="287" fill="#f8fafc" font-family="Inter,Arial,sans-serif" font-size="17" font-weight="700">Camera feed</text><text x="345" y="308" fill="#cbd5e1" font-family="Inter,Arial,sans-serif" font-size="13">Authorized source</text>
+<!-- flow arrows -->
+<path d="M446 238 C490 230 496 205 531 207" fill="none" stroke="#67e8f9" stroke-width="3" stroke-dasharray="7 6" marker-end="url(#arrow)"/>
+<!-- laptop / detector -->
+<g filter="url(#shadow)">
+<path d="M514 286L630 222L750 291L632 359Z" fill="#64748b"/><path d="M514 286L632 359V373L514 300Z" fill="#334155"/><path d="M632 359L750 291V305L632 373Z" fill="#475569"/>
+<path d="M532 281L630 227L731 285L633 340Z" fill="#0f172a" stroke="#94a3b8" stroke-width="3"/>
+<path d="M544 280L630 233L718 284L633 331Z" fill="url(#screen)"/>
+<!-- bounding boxes -->
+<rect x="575" y="263" width="27" height="43" rx="2" fill="none" stroke="#34d399" stroke-width="2.5" transform="rotate(-29 588 284)"/><rect x="631" y="259" width="24" height="39" rx="2" fill="none" stroke="#34d399" stroke-width="2.5" transform="rotate(-29 643 278)"/><rect x="667" y="279" width="22" height="33" rx="2" fill="none" stroke="#34d399" stroke-width="2.5" transform="rotate(-29 678 295)"/>
+<path d="M553 300L615 266M566 307L626 274M645 316L705 283" stroke="#67e8f9" stroke-opacity=".6" stroke-width="1"/>
+<path d="M589 351L632 374L674 350" fill="none" stroke="#cbd5e1" stroke-width="2"/>
+</g>
+<text x="520" y="412" fill="#f8fafc" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="700">02 / DETECT</text><text x="520" y="434" fill="#cbd5e1" font-family="Inter,Arial,sans-serif" font-size="14">OpenCV + YOLO</text><text x="520" y="455" fill="#a5f3fc" font-family="Inter,Arial,sans-serif" font-size="13">Person boxes → count</text>
+<path d="M754 288 C791 288 798 258 830 258" fill="none" stroke="#67e8f9" stroke-width="3" stroke-dasharray="7 6" marker-end="url(#arrow)"/>
+<!-- occupancy engine device -->
+<g filter="url(#shadow)">
+<path d="M824 205L911 157L1002 209L914 260Z" fill="#475569"/><path d="M824 205V293L914 346V260Z" fill="#334155"/><path d="M914 260L1002 209V296L914 346Z" fill="#1e293b"/>
+<path d="M844 207L911 170L981 210L914 249Z" fill="#0f766e"/><path d="M858 207L911 178L968 210L914 242Z" fill="#115e59"/>
+<circle cx="885" cy="208" r="7" fill="#a7f3d0"/><circle cx="911" cy="194" r="7" fill="#a7f3d0"/><circle cx="936" cy="209" r="7" fill="#a7f3d0"/><path d="M875 226L914 248L950 227" fill="none" stroke="#5eead4" stroke-width="3"/>
+<rect x="844" y="263" width="48" height="21" rx="4" fill="#0f172a"/><text x="868" y="278" text-anchor="middle" fill="#a5f3fc" font-family="monospace" font-size="10">ZONE A</text><rect x="844" y="292" width="48" height="21" rx="4" fill="#0f172a"/><text x="868" y="307" text-anchor="middle" fill="#a5f3fc" font-family="monospace" font-size="10">ZONE B</text>
+</g>
+<text x="806" y="386" fill="#f8fafc" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="700">03 / OCCUPANCY</text><text x="806" y="408" fill="#cbd5e1" font-family="Inter,Arial,sans-serif" font-size="14">Zone polygons + counts</text>
+<path d="M1000 260 C1030 260 1033 238 1050 238" fill="none" stroke="#67e8f9" stroke-width="3" stroke-dasharray="7 6" marker-end="url(#arrow)"/>
+<!-- dashboard -->
+<g filter="url(#shadow)">
+<path d="M1034 160L1122 111L1174 141L1086 192Z" fill="#cbd5e1"/><path d="M1034 160V266L1086 297V192Z" fill="#64748b"/><path d="M1086 192L1174 141V247L1086 297Z" fill="#475569"/>
+<path d="M1047 162L1122 120L1161 143L1086 185Z" fill="#0f172a"/><path d="M1055 162L1121 126L1153 145L1087 181Z" fill="#172554"/>
+<path d="M1062 159L1080 149L1096 158L1078 168Z" fill="#34d399"/><path d="M1090 143L1107 134L1122 143L1105 153Z" fill="#fbbf24"/><path d="M1119 159L1135 150L1147 157L1131 166Z" fill="#fb7185"/>
+<path d="M1064 174L1084 185M1094 157L1111 167M1121 171L1137 180" stroke="#93c5fd" stroke-width="2"/>
+<path d="M1107 282L1107 303M1089 304L1125 304" stroke="#cbd5e1" stroke-width="4" stroke-linecap="round"/>
+</g>
+<text x="1005" y="341" fill="#f8fafc" font-family="Inter,Arial,sans-serif" font-size="17" font-weight="700">04 / FIND SPACE</text><text x="1005" y="363" fill="#cbd5e1" font-family="Inter,Arial,sans-serif" font-size="13">Live web dashboard</text>
+<!-- privacy plate -->
+<g>
+<rect x="64" y="594" width="1072" height="28" rx="14" fill="#0f766e" fill-opacity=".32" stroke="#2dd4bf" stroke-opacity=".7"/>
+<circle cx="83" cy="608" r="5" fill="#5eead4"/><text x="99" y="613" fill="#ccfbf1" font-family="Inter,Arial,sans-serif" font-size="13" font-weight="600">PRIVACY BY DESIGN</text><text x="270" y="613" fill="#e2e8f0" font-family="Inter,Arial,sans-serif" font-size="13">Store occupancy metadata and counts — avoid retaining raw video after processing.</text>
+</g>
+</svg>
