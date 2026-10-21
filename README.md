@@ -1,12 +1,17 @@
 
-
-```md
 # Where Is My Space? (WIMS)
 
 > **Find your space before you reach there.**  
 > Intelligence for physical spaces.
 
 WIMS is a campus spatial-intelligence project that estimates how spaces are being used and helps people find suitable study areas before walking there.
+
+## How WIMS works
+
+![Anatomy-style WIMS system illustration](docs/wims-system-anatomy.svg)
+
+WIMS turns an authorized camera source into useful occupancy information: the detector identifies people, zone logic estimates space usage, and the dashboard presents counts to help students choose a study area. The system is designed to keep the focus on occupancy metadata rather than retaining raw video.
+
 
 ## Live Application
 
@@ -548,4 +553,3 @@ The complete setup audit is available in [`WIMS_SETUP_REPORT.md`](WIMS_SETUP_REP
 ## License
 
 See [`LICENSE`](LICENSE).
-```
