@@ -30,6 +30,7 @@ The web app includes a mobile-first **WIMS Capture** route at `/capture`. Users 
 - Automatic raw-video cleanup after processing
 - Supabase-backed metadata and occupancy snapshots
 - Installable PWA support
+- Conversational WIMS Space Assistant backed by Amazon Bedrock (with a deterministic local fallback)
 
 ## Architecture
 
@@ -102,6 +103,10 @@ The frontend is built with:
 | `/` | Occupancy dashboard |
 | `/capture` | Mobile capture and upload studio |
 | `/manifest.webmanifest` | PWA manifest |
+
+The dashboard also includes the **WIMS Space Assistant**. It answers questions such as
+“Which space is quietest?” using only derived occupancy metadata. Raw video, faces, RTSP
+URLs, and device credentials are never included in the assistant context.
 
 ### Run Frontend Locally
 
@@ -357,6 +362,12 @@ python -m compileall -q app
 python -m pytest tests -q
 ```
 
+From the repository root, the equivalent command is:
+
+```bash
+python -m pytest -q
+```
+
 ## Environment Variables
 
 ### Frontend
@@ -401,6 +412,20 @@ STALE_CLAIM_MINUTES=30
 KEEP_RAW_VIDEO=false
 STREAM_INTERVAL_SECONDS=10
 ```
+
+### Conversational assistant / AWS Builder Mini Challenge
+
+The `POST /v1/assistant` endpoint uses Amazon Bedrock Converse when
+`BEDROCK_ENABLED=true`, `AWS_REGION` is set, and the runtime credentials have
+`bedrock:Converse` permission. The default model is `amazon.nova-lite-v1:0` and
+can be changed with `BEDROCK_MODEL_ID`. The Bedrock prompt is constructed from
+public zone names, capacities, derived occupancy counts, availability labels, and
+timestamps only. It explicitly prevents identity inference and reservations.
+
+For a no-credentials local demo, leave `BEDROCK_ENABLED=false`. WIMS then uses a
+deterministic fallback that handles quietest, busiest, and available-space queries
+without making an external AWS call. This makes the project straightforward for
+judges to run while keeping the documented AWS integration ready for deployment.
 
 Never expose these values:
 

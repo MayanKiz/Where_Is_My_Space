@@ -13,6 +13,7 @@ FastAPI service for the **WIMS Capture mobile app** plus the OpenCV + YOLO infer
 - `GET /v1/zones`: public zone configuration (capacity, polygon, location) used by the Capture app and dashboard.
 - `POST /v1/zones`: creates a zone with a normalised 0..1 polygon for an existing location (pairing code required).
 - `GET /v1/occupancy`: public live feed — the latest occupancy snapshot per public zone with availability labels.
+- `POST /v1/assistant`: conversational space recommendations from derived occupancy metadata; uses Amazon Bedrock when enabled and a deterministic local fallback otherwise.
 - Source/upload/status/preview requests require the shared `X-WIMS-Capture-Key` beta pairing code.
 - All `/v1` routes are rate limited in-process (default 120 req/min per client, 10 uploads/min; configurable).
 - Expired videos which have not entered processing are removed by a best-effort cleanup loop while the API runs.
@@ -66,6 +67,12 @@ python -m app.worker --mode all
 ```
 
 Open `http://localhost:8000/docs` for the API schema and `http://localhost:8000/health` for configuration status. Do not expose the service-role key or source-encryption key to the browser, screenshots, or GitHub.
+
+The assistant is disabled-by-default for local development. Set `BEDROCK_ENABLED=true`,
+`AWS_REGION`, and `BEDROCK_MODEL_ID` only in a runtime with AWS credentials that have
+`bedrock:Converse` permission. The request context contains public zone names and derived
+occupancy values only; raw video and camera URLs are never sent to Bedrock. With the default
+`BEDROCK_ENABLED=false`, common availability questions are answered locally without AWS.
 
 Run tests:
 
