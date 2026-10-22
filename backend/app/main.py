@@ -21,6 +21,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from starlette.concurrency import run_in_threadpool
 from supabase import Client, create_client
 
+from app.assistant import AssistantSettings, answer as answer_assistant
 from app.occupancy import availability_status, normalize_polygon
 from app.ratelimit import SlidingWindowLimiter
 
@@ -51,6 +52,9 @@ class Settings(BaseSettings):
     upload_rate_limit_per_minute: int = PydanticField(default=10, ge=1, le=1000)
     capture_access_code: str | None = None
     source_encryption_key: str | None = None
+    aws_region: str = "us-east-1"
+    bedrock_model_id: str = "amazon.nova-lite-v1:0"
+    bedrock_enabled: bool = False
 
     @property
     def upload_limit_bytes(self) -> int:
@@ -261,6 +265,11 @@ class ZoneCreate(BaseModel):
     # Normalised polygon: [[x,y], ...] with 0..1 coordinates.
     polygon: list[list[float]] | None = None
     is_public: bool = True
+
+
+class AssistantMessage(BaseModel):
+    message: str = PydanticField(min_length=1, max_length=1200)
+    history: list[dict[str, str]] = PydanticField(default_factory=list, max_length=8)
 
 
 @app.get("/health", tags=["system"])
@@ -650,6 +659,53 @@ async def get_live_occupancy(client: Client = Depends(require_supabase)) -> dict
 
     zones_output.sort(key=lambda item: item["name"] or "")
     return {"generated_at": datetime.now(timezone.utc).isoformat(), "zones": zones_output}
+
+
+@app.post("/v1/assistant", tags=["assistant"])
+async def ask_space_assistant(
+    payload: AssistantMessage,
+    request: Request,
+) -> dict[str, Any]:
+    """Answer space questions using public, derived occupancy metadata only."""
+    client = getattr(request.app.state, "supabase", None)
+    try:
+        if client is None:
+            raise HTTPException(status_code=503, detail="Supabase is not configured")
+        feed = await get_live_occupancy(client)
+        zones = [
+            {
+                "name": zone.get("name"),
+                "location": zone.get("location_name"),
+                "capacity": zone.get("capacity"),
+                "occupied": (
+                    zone.get("capacity") - zone.get("available_count")
+                    if zone.get("available_count") is not None and zone.get("capacity") is not None
+                    else None
+                ),
+                "status": zone.get("status"),
+                "observed_at": zone.get("observed_at"),
+            }
+            for zone in feed["zones"]
+        ]
+    except HTTPException as exc:
+        if exc.status_code != 503:
+            raise
+        # Keep the assistant useful for a first-run local demo before Supabase is configured.
+        zones = []
+
+    config: Settings = request.app.state.settings
+    assistant_settings = AssistantSettings(
+        region=config.aws_region,
+        model_id=config.bedrock_model_id,
+        enabled=config.bedrock_enabled,
+    )
+    try:
+        response, provider = await run_in_threadpool(
+            answer_assistant, payload.message, zones, payload.history, assistant_settings
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"answer": response, "provider": provider, "zones_considered": len(zones)}
 
 
 @app.get("/v1/jobs/{job_id}/preview", tags=["jobs"], dependencies=[Depends(require_capture_access)])

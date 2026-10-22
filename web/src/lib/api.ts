@@ -207,6 +207,27 @@ export type WimsHealth = {
   video_processing: string;
 };
 
+export type AssistantReply = {
+  answer: string;
+  provider: "amazon-bedrock" | "local-fallback";
+  zones_considered: number;
+};
+
+export async function askSpaceAssistant(
+  message: string,
+  history: { role: "user" | "assistant"; content: string }[] = [],
+): Promise<AssistantReply> {
+  const baseUrl = getWimsApiUrl();
+  if (!baseUrl) throw new Error("The WIMS API URL is not configured.");
+  const response = await fetch(`${baseUrl}/v1/assistant`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ message, history: history.slice(-8) }),
+  });
+  if (!response.ok) throw new Error(await apiErrorMessage(response));
+  return (await response.json()) as AssistantReply;
+}
+
 export async function fetchHealth(): Promise<WimsHealth> {
   const baseUrl = getWimsApiUrl();
   if (!baseUrl) throw new Error("The WIMS API URL is not configured.");

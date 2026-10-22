@@ -123,3 +123,22 @@ button { -webkit-tap-highlight-color: transparent; }
 .capture-launch-facts span{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:9px}
 .capture-launch-facts svg{color:var(--green)}
 @media(max-width:720px){.capture-launch-card{align-items:flex-start;padding:13px}.capture-launch-icon{width:34px;height:34px}.capture-launch-copy small{font-size:8px}.capture-launch-facts{gap:8px;flex-direction:column}}
+
+.assistant-panel{display:grid;grid-template-columns:minmax(220px,.8fr) minmax(0,1.2fr);gap:18px;margin-top:18px;border:1px solid #d9e4e8;border-radius:12px;padding:18px;background:linear-gradient(125deg,#f4fafb,#ffffff 62%)}
+.assistant-copy h2{margin:9px 0 0;color:var(--text);font-size:18px;letter-spacing:-.03em}
+.assistant-copy p{max-width:440px;margin:9px 0 0;color:var(--muted);font-size:10px;line-height:1.7}
+.assistant-prompts{display:flex;flex-wrap:wrap;gap:6px;margin-top:13px}
+.assistant-prompts button{border:1px solid #c8dbe3;border-radius:999px;padding:6px 8px;color:var(--cyan);background:#ffffff;font-size:8px;cursor:pointer}
+.assistant-prompts button:hover:not(:disabled){background:#eef5f8}
+.assistant-prompts button:disabled{cursor:not-allowed;opacity:.55}
+.assistant-chat{display:flex;min-width:0;flex-direction:column;border:1px solid var(--line);border-radius:9px;padding:10px;background:#ffffff}
+.assistant-messages{display:flex;min-height:116px;max-height:210px;flex-direction:column;gap:7px;overflow:auto;padding:2px}
+.assistant-message{max-width:88%;border-radius:8px;padding:8px 9px;color:#4d545e;background:#f3f5f7;font-size:9px;line-height:1.6}
+.assistant-message.user{align-self:flex-end;color:#ffffff;background:var(--cyan)}
+.assistant-message.assistant{align-self:flex-start}
+.assistant-form{display:flex;gap:7px;margin-top:9px}
+.assistant-form input{min-width:0;flex:1;border:1px solid var(--line);border-radius:7px;padding:8px 9px;outline:none;color:var(--text);font:inherit;font-size:9px}
+.assistant-form input:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(14,116,144,.1)}
+.assistant-form button{border:0;border-radius:7px;padding:0 12px;color:#ffffff;background:var(--cyan);font-size:9px;font-weight:650;cursor:pointer}
+.assistant-form button:disabled{cursor:not-allowed;opacity:.45}
+@media(max-width:720px){.assistant-panel{grid-template-columns:1fr;padding:14px}.assistant-messages{min-height:105px}}

@@ -6,7 +6,7 @@ import {
   LockKeyhole, MapPinned, ScanSearch, ShieldCheck, Sparkles, Users, Video, Zap,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { OccupancyFeed, WimsHealth, fetchHealth, fetchLiveOccupancy, getWimsApiUrl } from "@/lib/api";
+import { AssistantReply, OccupancyFeed, WimsHealth, askSpaceAssistant, fetchHealth, fetchLiveOccupancy, getWimsApiUrl } from "@/lib/api";
 
 type DisplayZone = {
   id: string;
@@ -97,6 +97,11 @@ function MetricCard({
 export default function DashboardPage() {
   const { feed, health, error } = useLiveWims();
   const liveMode = Boolean(feed && feed.zones.length > 0);
+  const [assistantInput, setAssistantInput] = useState("");
+  const [assistantMessages, setAssistantMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([
+    { role: "assistant", content: "Ask me which spaces are quietest, busiest, or have room. I only use derived occupancy metadata." },
+  ]);
+  const [assistantBusy, setAssistantBusy] = useState(false);
 
   const zones: DisplayZone[] = useMemo(() => {
     if (!liveMode || !feed) return sampleZones;
@@ -143,6 +148,26 @@ export default function DashboardPage() {
       color: "green",
     },
   ];
+
+  async function submitAssistant(question = assistantInput) {
+    const trimmed = question.trim();
+    if (!trimmed || assistantBusy) return;
+    const nextMessages = [...assistantMessages, { role: "user" as const, content: trimmed }];
+    setAssistantMessages(nextMessages);
+    setAssistantInput("");
+    setAssistantBusy(true);
+    try {
+      const reply: AssistantReply = await askSpaceAssistant(trimmed, nextMessages);
+      setAssistantMessages((current) => [...current, { role: "assistant", content: reply.answer }]);
+    } catch (assistantError) {
+      setAssistantMessages((current) => [...current, {
+        role: "assistant",
+        content: assistantError instanceof Error ? assistantError.message : "The assistant is temporarily unavailable.",
+      }]);
+    } finally {
+      setAssistantBusy(false);
+    }
+  }
 
   return (
     <div className="app-shell">
@@ -324,6 +349,33 @@ export default function DashboardPage() {
                 <p>Video → person detection → zone occupancy → Supabase → dashboard. {health ? `API health: ${health.video_processing}.` : "Each stage is verified before being marked active."}</p>
               </div>
             </article>
+          </section>
+
+          <section className="assistant-panel" id="assistant">
+            <div className="assistant-copy">
+              <div className="eyebrow"><Sparkles size={13} /> WIMS SPACE ASSISTANT</div>
+              <h2>Ask before you walk.</h2>
+              <p>Get a practical recommendation from the latest occupancy estimates. The assistant never receives raw video, faces, or device credentials.</p>
+              <div className="assistant-prompts">
+                {["Which space is quietest?", "What is busiest right now?", "Where do I have room?"] .map((prompt) => (
+                  <button key={prompt} type="button" onClick={() => void submitAssistant(prompt)} disabled={assistantBusy}>{prompt}</button>
+                ))}
+              </div>
+            </div>
+            <div className="assistant-chat">
+              <div className="assistant-messages" aria-live="polite">
+                {assistantMessages.slice(-5).map((item, index) => (
+                  <div key={`${item.role}-${index}`} className={`assistant-message ${item.role}`}>
+                    {item.content}
+                  </div>
+                ))}
+                {assistantBusy && <div className="assistant-message assistant">Checking the latest space signals…</div>}
+              </div>
+              <form className="assistant-form" onSubmit={(event) => { event.preventDefault(); void submitAssistant(); }}>
+                <input value={assistantInput} onChange={(event) => setAssistantInput(event.target.value)} placeholder="e.g. Find me a quieter study space" maxLength={1200} aria-label="Ask the WIMS assistant" />
+                <button type="submit" disabled={assistantBusy || !assistantInput.trim()}>Ask</button>
+              </form>
+            </div>
           </section>
 
           <footer className="footer-note"><span><ShieldCheck size={12} /> Privacy is a design constraint, not an add-on.</span><span>WIMS / 001 <span className="footer-divider">·</span> {connectionNote}</span></footer>

@@ -7,3 +7,5 @@ cryptography>=43,<47
 # Inference worker (OpenCV DNN runs the pinned YOLO ONNX model).
 opencv-python-headless>=4.9,<6
 numpy>=1.26,<3
+# Optional conversational assistant provider; the app falls back locally when disabled.
+boto3>=1.35,<2.0
