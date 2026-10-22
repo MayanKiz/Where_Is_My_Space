@@ -471,7 +471,7 @@ The AI worker:
 
 1. Claims queued jobs atomically.
 2. Recovers stale jobs from crashed workers.
-3. Downloads and verifies the pinned YOLO model.
+3. Downloads and verifies the pinned YOLO model. 
 4. Samples video frames using OpenCV.
 5. Detects people.
 6. Applies optional occupancy-zone polygons.
