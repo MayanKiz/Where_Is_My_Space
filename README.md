@@ -1,5 +1,3 @@
-
-
 ```md
 # Where Is My Space? (WIMS)
 
