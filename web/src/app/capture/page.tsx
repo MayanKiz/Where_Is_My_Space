@@ -41,10 +41,8 @@ function formatBytes(bytes: number): string {
 }
 
 const modeCards: { id: Mode; title: string; description: string; icon: typeof Video }[] = [
-  { id: "camera", title: "Phone camera", description: "Use the rear camera and record a clip.", icon: Video },
-  { id: "screen", title: "Screen share", description: "Capture a playable video, where supported.", icon: MonitorUp },
-  { id: "file", title: "Video file", description: "Upload an existing MP4 or WebM recording.", icon: FileVideo2 },
-  { id: "external", title: "CCTV / IP camera", description: "Register an RTSP / RTSPS source.", icon: Radio },
+  { id: "file", title: "Repository video", description: "Analyze public/recording.mp4 from this project, or choose another clip.", icon: FileVideo2 },
+  { id: "camera", title: "Connect a camera", description: "Use this device’s camera, record a short clip, then analyze it.", icon: Video },
 ];
 
 export default function CapturePage() {
@@ -60,6 +58,7 @@ export default function CapturePage() {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isLoadingRepositoryVideo, setIsLoadingRepositoryVideo] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [job, setJob] = useState<UploadJobResponse | null>(null);
   const [sources, setSources] = useState<CaptureSource[]>([]);
@@ -341,6 +340,33 @@ export default function CapturePage() {
     if (recorderRef.current?.state === "recording") recorderRef.current.stop();
   }
 
+  async function loadRepositoryVideo() {
+    setIsLoadingRepositoryVideo(true);
+    setFeedback(null);
+    try {
+      const response = await fetch("/recording.mp4", { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(response.status === 404
+          ? "recording.mp4 was not found. Add the video to web/public/recording.mp4 in the repository and redeploy."
+          : `Could not load recording.mp4 (HTTP ${response.status}).`);
+      }
+      const blob = await response.blob();
+      if (!blob.size) throw new Error("recording.mp4 is empty.");
+      const loadedFile = new File([blob], "recording.mp4", { type: blob.type || "video/mp4" });
+      if (loadedFile.size > 100 * 1024 * 1024) throw new Error("recording.mp4 is over the current 100 MB upload limit.");
+      setFile(loadedFile);
+      setRecordedFile(null);
+      setJob(null);
+      setJobStatus(null);
+      setSourceName("Repository recording");
+      setFeedback({ kind: "success", message: `Repository video ready (${formatBytes(loadedFile.size)}). Select Upload to WIMS to run AI person detection.` });
+    } catch (error) {
+      setFile(null);
+      setFeedback({ kind: "error", message: error instanceof Error ? error.message : "Could not load recording.mp4." });
+    } finally {
+      setIsLoadingRepositoryVideo(false);
+    }
+  }
   function onFileChange(event: ChangeEvent<HTMLInputElement>) {
     const chosen = event.target.files?.[0] ?? null;
     if (!chosen) return;
@@ -477,13 +503,13 @@ export default function CapturePage() {
       <section className="capture-intro">
         <div className="capture-kicker"><Smartphone size={13} /> MOBILE SOURCE STUDIO <span className="kicker-dot" /> BETA</div>
         <h1>Bring the space<br /><span>into focus.</span></h1>
-        <p>Capture from a phone camera, share a screen where supported, upload a recording, or register another IP camera—all from this app.</p>
+        <p>Choose one of two sources: analyze <code>public/recording.mp4</code> from this repository, or connect this device&apos;s camera and record a clip for analysis.</p>
         <div className="capture-benefits"><span><LockKeyhole size={13} /> Temporary video storage</span><span><Database size={13} /> Source metadata in Supabase</span></div>
       </section>
 
       <section className="capture-workbench">
         <div className="source-mode-header">
-          <div><div className="workbench-title">Add a video source</div><div className="workbench-subtitle">Choose how WIMS receives the footage.</div></div>
+          <div><div className="workbench-title">Choose your video source</div><div className="workbench-subtitle">Analyze the repository video or use a connected device camera.</div></div>
           <span className="secure-tag"><span /> PAIRED DEVICE</span>
         </div>
 
@@ -521,12 +547,16 @@ export default function CapturePage() {
         </div>}
 
         {mode === "file" && <div className="capture-mode-body">
+          <button type="button" className="capture-primary full" onClick={() => void loadRepositoryVideo()} disabled={isLoadingRepositoryVideo || isUploading}>
+            <FileVideo2 size={16} /> {isLoadingRepositoryVideo ? "Loading recording.mp4…" : "Load public/recording.mp4"}
+          </button>
+          <div className="repository-video-note">Place your clip at <code>web/public/recording.mp4</code> in the repository. The app loads it here and sends it to the existing AI analysis worker.</div>
           <button type="button" className="file-drop" onClick={() => fileInputRef.current?.click()} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const dropped = event.dataTransfer.files?.[0]; if (dropped) { const fakeEvent = { target: { files: [dropped], value: "" } } as unknown as ChangeEvent<HTMLInputElement>; onFileChange(fakeEvent); } }}>
             <span className="large-mode-icon"><CloudUpload size={25} /></span><strong>{file ? file.name : "Choose or drop a video file"}</strong><span>{file ? formatBytes(file.size) + " · Ready for upload" : "MP4 or WebM · Up to 100 MB per file"}</span><em>Browse files</em>
           </button>
           <input ref={fileInputRef} className="sr-only" type="file" accept=".mp4,.webm,video/mp4,video/webm" onChange={onFileChange} />
           {file && <div className="captured-file"><FileVideo2 size={15} /><span><strong>File selected</strong><small>{file.name} · {formatBytes(file.size)}</small></span><button type="button" onClick={() => { setFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} aria-label="Remove selected video"><X size={15} /></button></div>}
-          <p className="mode-hint">The browser sends the chosen file directly to the WIMS API over HTTPS. It is stored in private temporary storage, analysed by the AI worker, and the raw video is deleted right after processing.</p>
+          <p className="mode-hint">The selected clip is sent to the WIMS API, analyzed for people, and removed from temporary storage after processing. Seat capacity is available when the selected zone has a configured capacity; seats are not visually detected by the current model.</p>
         </div>}
 
         {mode === "external" && <div className="capture-mode-body">
