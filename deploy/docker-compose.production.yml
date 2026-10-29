@@ -1,0 +1,40 @@
+services:
+  wims-api:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    image: wims-backend:production
+    restart: unless-stopped
+    env_file:
+      - ./.env.production
+    command: >-
+      sh -c 'exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}'
+    ports:
+      - "${WIMS_API_PORT:-8000}:8000"
+    volumes:
+      - wims-upload-staging:/tmp/wims-upload-staging
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  wims-worker:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    image: wims-backend:production
+    restart: unless-stopped
+    env_file:
+      - ./.env.production
+    command: ["python", "-m", "app.worker", "--mode", "all"]
+    volumes:
+      - wims-model-cache:/app/models
+    depends_on:
+      wims-api:
+        condition: service_healthy
+
+volumes:
+  wims-model-cache:
+  wims-upload-staging:
