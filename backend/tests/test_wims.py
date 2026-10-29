@@ -54,6 +54,8 @@ def test_polygon_to_pixels_and_normalize_roundtrip():
     assert normalize_polygon(["a", "b", "c"]) is None
     assert normalize_polygon([0, 1, 2]) is None
     assert normalize_polygon([[5.0, 5.0], [0.1, 0.1], [0.2, 0.2]]) is None  # out of range
+    assert normalize_polygon([[-0.01, 0.1], [0.5, 0.1], [0.5, 0.5]]) is None
+    assert normalize_polygon([[0.1, 0.1], [1.01, 0.1], [0.5, 0.5]]) is None
 
 
 def test_estimate_zone_occupancy_with_and_without_polygon():

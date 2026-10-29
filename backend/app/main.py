@@ -653,7 +653,7 @@ async def get_live_occupancy(client: Client = Depends(require_supabase)) -> dict
                 "confidence": snap.get("confidence") if snap else None,
                 "has_live_data": snap is not None,
                 "status": availability_status(occupied, capacity) if occupied is not None else "No data",
-                "available_count": capacity - occupied if occupied is not None else None,
+                "available_count": max(capacity - occupied, 0) if occupied is not None else None,
             }
         )
 

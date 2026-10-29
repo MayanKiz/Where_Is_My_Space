@@ -58,7 +58,7 @@ def normalize_polygon(value: object) -> Polygon | None:
             x, y = float(item[0]), float(item[1])
         except (TypeError, ValueError):
             return None
-        if not (-0.5 <= x <= 1.5 and -0.5 <= y <= 1.5):
+        if not (0.0 <= x <= 1.0 and 0.0 <= y <= 1.0):
             return None
         points.append((x, y))
     return points
