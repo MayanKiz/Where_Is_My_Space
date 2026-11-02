@@ -266,3 +266,28 @@ def test_worker_settings_defaults():
     assert settings.supabase_preview_bucket == "wims-job-previews"
     assert settings.stale_claim_minutes >= 1
     assert settings.detection_confidence > 0
+
+
+def test_api_settings_accept_documented_wims_environment_names(monkeypatch):
+    from app.main import Settings
+
+    monkeypatch.setenv("WIMS_CAPTURE_ACCESS_CODE", "test-capture-code")
+    monkeypatch.setenv("WIMS_SOURCE_ENCRYPTION_KEY", "test-encryption-key")
+    monkeypatch.setenv("CAPTURE_ACCESS_CODE", "legacy-capture-code")
+    monkeypatch.setenv("SOURCE_ENCRYPTION_KEY", "legacy-encryption-key")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.capture_access_code == "test-capture-code"
+    assert settings.source_encryption_key == "test-encryption-key"
+
+
+def test_worker_settings_accept_documented_wims_encryption_name(monkeypatch):
+    from app.worker import WorkerSettings
+
+    monkeypatch.setenv("WIMS_SOURCE_ENCRYPTION_KEY", "test-encryption-key")
+    monkeypatch.setenv("SOURCE_ENCRYPTION_KEY", "legacy-encryption-key")
+
+    settings = WorkerSettings(_env_file=None)
+
+    assert settings.source_encryption_key == "test-encryption-key"
