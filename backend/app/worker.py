@@ -36,6 +36,7 @@ from typing import Any
 
 import cv2
 from cryptography.fernet import Fernet, InvalidToken
+from pydantic import AliasChoices, Field as PydanticField
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from supabase import Client, create_client
 
@@ -58,7 +59,10 @@ class WorkerSettings(BaseSettings):
     supabase_url: str | None = None
     supabase_service_role_key: str | None = None
     supabase_video_bucket: str = "wims-temporary-videos"
-    source_encryption_key: str | None = None
+    source_encryption_key: str | None = PydanticField(
+        default=None,
+        validation_alias=AliasChoices("WIMS_SOURCE_ENCRYPTION_KEY", "SOURCE_ENCRYPTION_KEY"),
+    )
 
     # Worker-specific.
     supabase_preview_bucket: str = "wims-job-previews"

@@ -16,7 +16,7 @@ from cryptography.fernet import Fernet, InvalidToken
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field as PydanticField
+from pydantic import AliasChoices, BaseModel, Field as PydanticField
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from starlette.concurrency import run_in_threadpool
 from supabase import Client, create_client
@@ -50,8 +50,14 @@ class Settings(BaseSettings):
     supabase_preview_bucket: str = PREVIEW_BUCKET
     rate_limit_per_minute: int = PydanticField(default=120, ge=1, le=10000)
     upload_rate_limit_per_minute: int = PydanticField(default=10, ge=1, le=1000)
-    capture_access_code: str | None = None
-    source_encryption_key: str | None = None
+    capture_access_code: str | None = PydanticField(
+        default=None,
+        validation_alias=AliasChoices("WIMS_CAPTURE_ACCESS_CODE", "CAPTURE_ACCESS_CODE"),
+    )
+    source_encryption_key: str | None = PydanticField(
+        default=None,
+        validation_alias=AliasChoices("WIMS_SOURCE_ENCRYPTION_KEY", "SOURCE_ENCRYPTION_KEY"),
+    )
     aws_region: str = "us-east-1"
     bedrock_model_id: str = "amazon.nova-lite-v1:0"
     bedrock_enabled: bool = False
