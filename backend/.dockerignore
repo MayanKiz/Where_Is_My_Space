@@ -1,0 +1,25 @@
+# Git / CI
+.git
+.github
+
+# Local environments
+.venv/
+venv/
+env/
+.env
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+
+# Tests (not shipped in the image)
+tests/
+
+# Local capture/scratch
+Public/
+recording.mp4
+*.wav
+
+# Docs
+README.md
+*.md
