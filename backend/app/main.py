@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import secrets
+import sqlite3
 import tempfile
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timedelta, timezone
@@ -13,7 +14,20 @@ from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
 from cryptography.fernet import Fernet, InvalidToken
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, Response, UploadFile
+from fastapi import (
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    Header,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+)
+from fastapi.responses import FileResponse
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import AliasChoices, BaseModel, Field as PydanticField
@@ -24,6 +38,7 @@ from supabase import Client, create_client
 from app.assistant import AssistantSettings, answer as answer_assistant
 from app.occupancy import availability_status, normalize_polygon
 from app.ratelimit import SlidingWindowLimiter
+from app.seat_store import SEAT_STATUSES, SeatStore
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger("wims.api")
@@ -72,6 +87,10 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+seat_store = SeatStore()
+camera_frame_path = Path(os.getenv("WIMS_CAMERA_FRAME", str(Path(__file__).resolve().parents[1] / "data" / "camera.jpg")))
+camera_frame_media_type = "image/jpeg"
+seat_websockets: set[WebSocket] = set()
 
 
 def build_supabase_client(config: Settings) -> Client | None:
@@ -278,6 +297,23 @@ class AssistantMessage(BaseModel):
     history: list[dict[str, str]] = PydanticField(default_factory=list, max_length=8)
 
 
+class SeatZone(BaseModel):
+    label: str = PydanticField(min_length=1, max_length=20, pattern=r"^[A-Za-z0-9_-]+$")
+    x1: float = PydanticField(ge=0)
+    y1: float = PydanticField(ge=0)
+    x2: float = PydanticField(ge=0)
+    y2: float = PydanticField(ge=0)
+    status: Literal["EMPTY", "OCCUPIED", "RESERVED"] = "EMPTY"
+
+
+class SeatMapPayload(BaseModel):
+    seats: list[SeatZone] = PydanticField(min_length=1, max_length=200)
+
+
+class SeatStatusPayload(BaseModel):
+    status: Literal["EMPTY", "OCCUPIED", "RESERVED"]
+
+
 @app.get("/health", tags=["system"])
 async def health(request: Request) -> dict[str, Any]:
     config: Settings = request.app.state.settings
@@ -289,6 +325,103 @@ async def health(request: Request) -> dict[str, Any]:
         "rtsp_encryption_configured": bool(config.source_encryption_key),
         "video_processing": "queued_for_ai_worker",
     }
+
+
+async def broadcast_seats() -> None:
+    payload = {"type": "seats", "seats": seat_store.list_seats(), "analytics": seat_store.analytics()}
+    disconnected: list[WebSocket] = []
+    for websocket in seat_websockets:
+        try:
+            await websocket.send_json(payload)
+        except Exception:
+            disconnected.append(websocket)
+    for websocket in disconnected:
+        seat_websockets.discard(websocket)
+
+
+@app.get("/api/seats", tags=["seats"])
+async def list_seats() -> dict[str, Any]:
+    return {"seats": seat_store.list_seats()}
+
+
+@app.get("/api/seats/available", tags=["seats"])
+async def available_seats() -> list[str]:
+    return seat_store.available_labels()
+
+
+@app.post("/api/seats/map", tags=["seats"])
+async def save_seat_map(payload: SeatMapPayload) -> dict[str, Any]:
+    try:
+        for seat in payload.seats:
+            if seat.x2 <= seat.x1 or seat.y2 <= seat.y1:
+                raise ValueError(f"{seat.label}: x2/y2 must be greater than x1/y1")
+        seats = seat_store.save_seats([seat.model_dump() for seat in payload.seats])
+    except (ValueError, sqlite3.Error) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    await broadcast_seats()
+    return {"seats": seats}
+
+
+@app.patch("/api/seats/{seat_id}/status", tags=["seats"])
+async def set_seat_status(seat_id: int, payload: SeatStatusPayload) -> dict[str, Any]:
+    try:
+        seat = seat_store.update_status(seat_id, payload.status)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if seat is None:
+        raise HTTPException(status_code=404, detail="Seat not found.")
+    await broadcast_seats()
+    return seat
+
+
+@app.get("/api/analytics", tags=["seats"])
+async def seat_analytics() -> dict[str, Any]:
+    return seat_store.analytics()
+
+
+@app.websocket("/ws/seats")
+async def seat_status_socket(websocket: WebSocket) -> None:
+    await websocket.accept()
+    seat_websockets.add(websocket)
+    try:
+        await websocket.send_json(
+            {"type": "seats", "seats": seat_store.list_seats(), "analytics": seat_store.analytics()}
+        )
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        seat_websockets.discard(websocket)
+
+
+@app.post("/api/camera/frame", tags=["seats"])
+async def upload_camera_frame(file: UploadFile = File(...)) -> dict[str, str]:
+    global camera_frame_media_type
+    content_type = (file.content_type or "").lower()
+    if content_type not in {"image/jpeg", "image/png", "image/webp"}:
+        raise HTTPException(status_code=415, detail="Upload a JPEG, PNG, or WebP camera frame.")
+    camera_frame_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = camera_frame_path.with_suffix(camera_frame_path.suffix + ".part")
+    try:
+        with temporary.open("wb") as target:
+            while chunk := await file.read(1024 * 1024):
+                target.write(chunk)
+        temporary.replace(camera_frame_path)
+        camera_frame_media_type = content_type
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail="Could not save the camera frame.") from exc
+    finally:
+        await file.close()
+        temporary.unlink(missing_ok=True)
+    return {"url": "/api/camera/frame"}
+
+
+@app.get("/api/camera/frame", tags=["seats"])
+async def get_camera_frame() -> Response:
+    if not camera_frame_path.exists():
+        raise HTTPException(status_code=404, detail="No camera frame has been uploaded yet.")
+    return FileResponse(camera_frame_path, media_type=camera_frame_media_type)
 
 
 @app.get("/v1/sources", tags=["sources"], dependencies=[Depends(require_capture_access)])

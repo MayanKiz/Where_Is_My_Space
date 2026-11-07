@@ -46,7 +46,7 @@ from app.occupancy import OccupancyTracker, estimate_zone_occupancy, normalize_p
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger("wims.worker")
 
-DETECTOR_VERSION = "yolov5s-onnx-opencv-dnn"
+DETECTOR_VERSION = "yolov8n-onnx-opencv-dnn"
 
 JOB_COLUMNS = "id,source_id,location_id,zone_id,source_type,storage_path,status,progress_percent,expires_at"
 SOURCE_COLUMNS = "id,name,location_id,zone_id,status,stream_url_ciphertext,metadata,last_seen_at"
@@ -70,10 +70,10 @@ class WorkerSettings(BaseSettings):
     poll_seconds: int = 5
     stale_claim_minutes: int = 30
     max_attempts: int = 3
-    yolo_model_path: str = "models/yolov5s.onnx"
-    yolo_model_url: str = "https://github.com/ultralytics/yolov5/releases/download/v7.0/yolov5s.onnx"
-    yolo_model_sha256: str = "8bc25a47abdbe2fd23e30eb948746bf856b031ea3cc815166687f52db9f8c659"
-    detection_confidence: float = 0.35
+    yolo_model_path: str = "models/yolov8n.onnx"
+    yolo_model_url: str = "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n.onnx"
+    yolo_model_sha256: str = ""
+    detection_confidence: float = 0.25
     detection_iou: float = 0.45
     frame_stride: int = 5
     max_sampled_frames: int = 60
