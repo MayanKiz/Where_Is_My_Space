@@ -68,6 +68,12 @@ person-box overlap over 40%, a three-second occupied debounce, and a five-second
 empty debounce; the lightweight IoU tracker keeps short-lived person IDs stable
 on CPU. Set `WIMS_SQLITE_PATH` to choose the database location.
 
+For live library operation, set `WIMS_CAMERA_URL` to `0`, a video path, or an RTSP
+URL and run `python -m app.worker --mode seats`. The worker reads the saved seat
+rectangles, runs YOLOv8n at 0.25 confidence, writes `seats` and `seat_sessions`,
+and saves an annotated frame at `WIMS_CAMERA_FRAME`. The dashboard WebSocket polls
+SQLite once per second, so status changes appear without restarting the web app.
+
 ## Project Structure
 
 ```text

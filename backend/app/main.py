@@ -388,7 +388,10 @@ async def seat_status_socket(websocket: WebSocket) -> None:
             {"type": "seats", "seats": seat_store.list_seats(), "analytics": seat_store.analytics()}
         )
         while True:
-            await websocket.receive_text()
+            await asyncio.sleep(1)
+            await websocket.send_json(
+                {"type": "seats", "seats": seat_store.list_seats(), "analytics": seat_store.analytics()}
+            )
     except WebSocketDisconnect:
         pass
     finally:

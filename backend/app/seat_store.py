@@ -163,3 +163,12 @@ class SeatStore:
             "occupancy_rate": round(occupied / total, 4) if total else 0.0,
             "sessions_today": int(sessions),
         }
+
+    def apply_statuses(self, statuses: dict[int, str], at: str | None = None) -> list[dict[str, Any]]:
+        """Persist only changed statuses and return the resulting seat rows."""
+        changed: list[dict[str, Any]] = []
+        for seat_id, status in statuses.items():
+            seat = self.update_status(seat_id, status, at=at)
+            if seat is not None:
+                changed.append(seat)
+        return changed

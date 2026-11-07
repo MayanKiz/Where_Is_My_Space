@@ -42,6 +42,8 @@ from supabase import Client, create_client
 
 from app.detector import Detection, ModelUnavailableError, YoloDetector, draw_detections
 from app.occupancy import OccupancyTracker, estimate_zone_occupancy, normalize_polygon, polygon_to_pixels
+from app.seat_occupancy import SeatOccupancyEngine
+from app.seat_store import SeatStore
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 logger = logging.getLogger("wims.worker")
@@ -81,6 +83,22 @@ class WorkerSettings(BaseSettings):
     preview_width: int = 960
     stream_interval_seconds: int = 10
     stream_snapshot_max_per_hour: int = 600
+    sqlite_path: str = PydanticField(
+        default="data/wims.db",
+        validation_alias=AliasChoices("WIMS_SQLITE_PATH", "SQLITE_PATH"),
+    )
+    camera_url: str | None = PydanticField(
+        default=None,
+        validation_alias=AliasChoices("WIMS_CAMERA_URL", "CAMERA_URL"),
+    )
+    camera_frame_path: str = PydanticField(
+        default="data/camera.jpg",
+        validation_alias=AliasChoices("WIMS_CAMERA_FRAME", "CAMERA_FRAME"),
+    )
+    seat_detection_interval_seconds: float = PydanticField(
+        default=0.25,
+        validation_alias=AliasChoices("WIMS_SEAT_DETECTION_INTERVAL_SECONDS", "SEAT_DETECTION_INTERVAL_SECONDS"),
+    )
 
 
 def utcnow() -> str:
@@ -593,6 +611,58 @@ def stream_loop(settings: WorkerSettings, stop: threading.Event) -> None:
     logger.info("Stream worker stopped.")
 
 
+def seat_camera_loop(settings: WorkerSettings, stop: threading.Event) -> None:
+    """Process a local/RTSP library camera against SQLite seat rectangles."""
+    if not settings.camera_url:
+        logger.info("Seat camera disabled; set WIMS_CAMERA_URL to enable it.")
+        return
+    store = SeatStore(settings.sqlite_path)
+    detector = build_detector(settings)
+    try:
+        detector.load()
+    except ModelUnavailableError as exc:
+        logger.error("Detector unavailable for seat camera: %s", exc)
+        return
+
+    engine = SeatOccupancyEngine()
+    capture = cv2.VideoCapture(settings.camera_url)
+    if not capture.isOpened():
+        logger.error("Could not open WIMS_CAMERA_URL=%s", settings.camera_url)
+        return
+    logger.info("Seat camera worker started for %s.", settings.camera_url)
+    try:
+        while not stop.is_set():
+            ok, frame = capture.read()
+            if not ok:
+                logger.warning("Seat camera frame read failed; reconnecting.")
+                capture.release()
+                stop.wait(2)
+                capture = cv2.VideoCapture(settings.camera_url)
+                continue
+            seats = store.list_seats()
+            if not seats:
+                stop.wait(settings.seat_detection_interval_seconds)
+                continue
+            detections = detector.detect_persons(frame)
+            statuses = engine.update(seats, detections, time.monotonic())
+            store.apply_statuses(statuses)
+            output = frame.copy()
+            for detection in detections:
+                cv2.rectangle(output, (detection.x1, detection.y1), (detection.x2, detection.y2), (0, 165, 255), 2)
+            for seat in store.list_seats():
+                color = (0, 0, 255) if seat["status"] == "OCCUPIED" else (0, 180, 0)
+                x1, y1, x2, y2 = (int(seat[key]) for key in ("x1", "y1", "x2", "y2"))
+                cv2.rectangle(output, (x1, y1), (x2, y2), color, 2)
+                cv2.putText(output, seat["label"], (x1 + 4, y1 + 18), cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2)
+            frame_path = Path(settings.camera_frame_path)
+            frame_path.parent.mkdir(parents=True, exist_ok=True)
+            cv2.imwrite(str(frame_path), output, [int(cv2.IMWRITE_JPEG_QUALITY), 82])
+            stop.wait(max(0.05, settings.seat_detection_interval_seconds))
+    finally:
+        capture.release()
+    logger.info("Seat camera worker stopped.")
+
+
 def _analyse_source_once(
     client: Client,
     settings: WorkerSettings,
@@ -670,7 +740,7 @@ def _analyse_source_once(
 
 def run(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="WIMS AI inference worker")
-    parser.add_argument("--mode", choices=["jobs", "stream", "all"], default="all")
+    parser.add_argument("--mode", choices=["jobs", "stream", "seats", "all"], default="all")
     parser.add_argument("--once", action="store_true", help="Process available jobs once and exit (jobs mode only).")
     args = parser.parse_args(argv)
 
@@ -697,6 +767,8 @@ def run(argv: list[str] | None = None) -> int:
             threads.append(threading.Thread(target=jobs_loop, args=(settings, stop), daemon=True, name="jobs"))
         if args.mode in ("stream", "all"):
             threads.append(threading.Thread(target=stream_loop, args=(settings, stop), daemon=True, name="stream"))
+        if args.mode in ("seats", "all"):
+            threads.append(threading.Thread(target=seat_camera_loop, args=(settings, stop), daemon=True, name="seats"))
 
         for thread in threads:
             thread.start()
