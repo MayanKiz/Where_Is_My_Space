@@ -73,7 +73,10 @@ export default function DashboardPage() {
         setDrafts(payload.seats);
       }
       if (payload.analytics) setAnalytics(payload.analytics);
-      if (payload.seats) setAvailable(payload.seats.filter((seat) => seat.status === "EMPTY").map((seat) => seat.label));
+      if (payload.seats) {
+        setAvailable(payload.seats.filter((seat) => seat.status === "EMPTY").map((seat) => seat.label));
+        setFrameUrl(`${apiBase()}/api/camera/frame`);
+      }
     };
     return () => socket.close();
   }, []);
