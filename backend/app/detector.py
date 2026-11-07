@@ -26,7 +26,7 @@ logger = logging.getLogger("wims.detector")
 PERSON_CLASS_ID = 0
 INPUT_SIZE = 640
 DEFAULT_MODEL_URL = (
-    "https://github.com/ultralytics/yolov5/releases/download/v7.0/yolov5s.onnx"
+    "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n.onnx"
 )
 
 

@@ -15,6 +15,9 @@ The web app includes a mobile-first **WIMS Capture** route at `/capture`. Users 
 ## Features
 
 - Live occupancy dashboard
+- Individual library-seat mapping with rectangular CCTV zones
+- SQLite seat status/session history with `/api/seats` and `/api/analytics`
+- Real-time seat updates over `/ws/seats`
 - Mobile-first video capture interface
 - Phone camera recording
 - Screen-share recording where supported
@@ -56,6 +59,14 @@ Occupancy Snapshots
         v
 Live Dashboard
 ```
+
+### Library seat mode
+
+The dashboard can upload a CCTV frame, draw one rectangle per seat, and save up to
+200 seats through the SQLite-backed `/api` endpoints. The occupancy engine uses
+person-box overlap over 40%, a three-second occupied debounce, and a five-second
+empty debounce; the lightweight IoU tracker keeps short-lived person IDs stable
+on CPU. Set `WIMS_SQLITE_PATH` to choose the database location.
 
 ## Project Structure
 
