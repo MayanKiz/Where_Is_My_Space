@@ -1,0 +1,13 @@
+# On-premise counter — install with:  pip install -r requirements.txt
+# Note: ultralytics pulls in torch (~2 GB). On CPU-only machines this works but
+# is slower; for GPU, install the CUDA build of torch first (https://pytorch.org).
+
+fastapi>=0.110.0
+uvicorn>=0.29.0
+pydantic-settings>=2.2.0
+python-multipart>=0.0.9
+itsdangerous>=2.1.2
+cryptography>=42.0.0
+httpx>=0.27.0
+ultralytics>=8.2.0
+opencv-python>=4.9.0

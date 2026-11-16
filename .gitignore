@@ -1,29 +1,10 @@
-# Node
 node_modules/
-.next/
-out/
-dist/
-
-# Environment
 .env
-.env.local
-.env.*.local
-
-# Python
+backend/.env
+*.db
+*.sqlite
 __pycache__/
-*.py[cod]
-.venv/
-venv/
-.pytest_cache/
-
-# AI model weights (downloaded at runtime, pinned by SHA-256)
-backend/models/
-*.onnx
-
-# IDE / OS
-.vscode/
-.idea/
+*.pyc
 .DS_Store
-
-# Logs
-*.log
+dist/
+*.pt
