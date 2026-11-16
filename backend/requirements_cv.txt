@@ -1,0 +1,10 @@
+# CV dependencies — install separately from backend
+# pip install -r requirements_cv.txt
+#
+# Note: ultralytics pulls in torch (~2GB). On CPU-only machines this is fine
+# but slower. For GPU inference install the CUDA build of torch first:
+#   https://pytorch.org/get-started/locally/
+
+ultralytics>=8.2.0
+opencv-python>=4.9.0
+httpx>=0.27.0
