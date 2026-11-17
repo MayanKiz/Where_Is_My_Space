@@ -72,7 +72,7 @@ python backend/cv_camera.py --camera-id cam_lt_01 --source 0
 python backend/cv_camera.py --multi
 ```
 
-Use the `--backend` option or `OCCUPANCY_API_BASE_URL` environment variable when the API is not on localhost. Camera hardware, camera placement, capacities, and deployment settings must be configured for the actual campus environment; the sample occupancy counts are demo data, not measured live values.
+When `DEVICE_API_KEY` is set on the backend, set the same value in the camera worker's environment; the worker sends it as `X-API-Key`. Set `OCCUPANCY_API_BASE_URL` (or `--backend`) to the API's public base URL when it is not on localhost. Camera hardware, camera placement, capacities, and deployment settings must be configured for the actual campus environment; the sample occupancy counts are demo data, not measured live values.
 
 ## Checks
 

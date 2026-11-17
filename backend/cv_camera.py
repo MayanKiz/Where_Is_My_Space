@@ -31,8 +31,8 @@ import os
 from datetime import datetime, timezone
 
 import httpx
-
 BACKEND_URL = os.environ.get("OCCUPANCY_API_BASE_URL", "http://localhost:8000").rstrip("/")
+DEVICE_API_KEY = os.environ.get("DEVICE_API_KEY", "")
 
 # ─── Configure your cameras here ───────────────────────────────────────────
 # source: webcam index (0,1,2), RTSP URL, or "test" for simulation
@@ -156,6 +156,7 @@ async def post_count(client: httpx.AsyncClient, camera_id: str, count: int, rese
                 "reserved": reserved,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             },
+            headers={"X-API-Key": DEVICE_API_KEY} if DEVICE_API_KEY else {},
             timeout=5.0,
         )
         return r.status_code == 200
