@@ -1,4 +1,4 @@
-# AKGEC Library, LT & CS-IT Canteen Occupancy Dashboard
+# AKGEC Library, LT & CS-IT Canteen Occupancy Dashboard 
 ### AKGEC · Real-time occupancy tracker for the library, LT areas, and CS-IT Canteen, powered by computer vision
 
 [![Live Demo](https://img.shields.io/badge/Live-AKGEC%20Dashboard-6366F1?style=flat-square)](#local-development)
